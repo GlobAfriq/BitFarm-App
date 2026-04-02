@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0a0a1a;
+  --color-card: #111225;
+  --color-primary: #f0a500;
+  --color-secondary: #ff6b35;
+  --font-sans: "Sora", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background-color: var(--color-background);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  margin: 0; padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-container {
+  max-width: 420px; margin: 0 auto;
+  min-height: 100vh; position: relative;
+  background-color: var(--color-background);
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  overflow-x: hidden;
+}
+
+.card {
+  background-color: var(--color-card);
+  border-radius: 16px; padding: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  color: white; font-weight: 600; padding: 12px 24px;
+  border-radius: 8px; border: none; cursor: pointer;
+  transition: transform 0.2s; width: 100%;
+}
+.btn-primary:active { transform: scale(0.97); }
+
+.btn-outline {
+  background: transparent; color: var(--color-primary);
+  font-weight: 600; padding: 12px 24px; border-radius: 8px;
+  border: 2px solid var(--color-primary); cursor: pointer;
+  transition: transform 0.2s; width: 100%;
+}
+.btn-outline:active { transform: scale(0.97); }
+
+.input-field {
+  background-color: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: white; padding: 12px 16px; border-radius: 8px;
+  width: 100%; font-size: 16px; outline: none;
+}
+.input-field:focus { border-color: var(--color-primary); }
+
+.bottom-nav {
+  position: fixed; bottom: 0; width: 100%; max-width: 420px;
+  background-color: var(--color-card);
+  display: flex; justify-content: space-around;
+  padding: 12px 0; border-top: 1px solid rgba(255,255,255,0.05);
+  z-index: 50;
+}
+
+.nav-item {
+  display: flex; flex-direction: column; align-items: center;
+  color: rgba(255,255,255,0.5); font-size: 10px;
+  text-decoration: none; gap: 4px;
+}
+.nav-item.active { color: var(--color-primary); }
+
+@keyframes glow {
+  0%, 100% { text-shadow: 0 0 8px var(--color-primary); }
+  50% { text-shadow: 0 0 20px var(--color-primary), 0 0 40px var(--color-secondary); }
+}
+.streak-glow { animation: glow 2s infinite; }

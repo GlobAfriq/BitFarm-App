@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return request.auth.uid == uid; }
+    function isAdmin() { return request.auth.token.admin == true; }
+
+    // Referral Codes: all signed-in users can read. Users can create their own.
+    match /referralCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+    }
+
+    // Users: owner reads/creates their own doc; can only update fullName and fcmToken
+    match /users/{uid} {
+      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create: if isSignedIn() && isOwner(uid);
+      allow update: if isSignedIn() && isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['fullName', 'fcmToken', 'updatedAt', 'streakBonus', 'badgeKeys']);
+    }
+
+    // Wallets: read only by owner. ALL writes via Cloud Functions only.
+    match /wallets/{uid} {
+      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create: if isSignedIn() && isOwner(uid)
+        && request.resource.data.balanceKes == 0
+        && request.resource.data.balanceUsdt == 0
+        && request.resource.data.lockedBalance == 0
+        && request.resource.data.totalEarned == 0
+        && request.resource.data.totalWithdrawn == 0
+        && request.resource.data.totalDeposited == 0;
+      allow update: if isSignedIn() && isOwner(uid);
+      allow delete: if false;
+    }
+
+    // Machine tiers: any signed-in user reads; only admin writes
+    match /machineTiers/{tierId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // User machines: owner reads only. Cloud Functions write.
+    match /userMachines/{machineId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Machine fractions: all signed-in users can read listed fractions
+    match /machineFractions/{fracId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // Transactions: owner reads. Cloud Functions write.
+    match /transactions/{txId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Deposits: owner reads. Cloud Functions write.
+    match /deposits/{depId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Withdrawals: owner reads. Cloud Functions write.
+    match /withdrawals/{wdId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Referrals: referrer or referred can read. Cloud Functions write.
+    match /referrals/{refId} {
+      allow read: if isSignedIn() &&
+        (resource.data.referrerId == request.auth.uid ||
+         resource.data.referredId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.referredId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update, delete: if false;
+    }
+
+    // Payouts: owner reads. Cloud Functions write.
+    match /payouts/{payId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Spin tickets: owner reads. Cloud Functions write.
+    match /spinTickets/{ticketId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Spin results: owner reads. Cloud Functions write.
+    match /spinResults/{resultId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Spin prizes: all signed-in users read. Admin writes.
+    match /spinPrizes/{prizeId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Streaks: owner reads. Cloud Functions write.
+    match /streaks/{uid} {
+      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow create: if isSignedIn() && isOwner(uid)
+        && request.resource.data.currentStreak == 0
+        && request.resource.data.longestStreak == 0;
+      allow update: if isSignedIn() && isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentStreak', 'longestStreak', 'lastLoginDate']);
+      allow delete: if false;
+    }
+
+    // Notifications: owner reads. Can only mark as read (update 'read' field only).
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Badges catalogue: all signed-in users read. Admin writes.
+    match /badges/{badgeId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Admins: no client access at all
+    match /admins/{adminId} {
+      allow read, write: if false;
+    }
+
+    // Audit log: admin read only. Cloud Functions write.
+    match /auditLog/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+  }
+}

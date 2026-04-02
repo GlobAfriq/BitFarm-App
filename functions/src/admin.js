@@ -1,0 +1,245 @@
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getAuth } = require('firebase-admin/auth');
+const { getMessaging } = require('firebase-admin/messaging');
+const bcrypt = require('bcrypt');
+const { processPayouts } = require('./jobs/weeklyPayouts');
+const { sendFCMToUser } = require('./services/fcm');
+
+const requireAdmin = (request) => {
+  if (!request.auth?.token?.admin) throw new HttpsError('permission-denied', 'Admin only');
+};
+
+exports.signInAdmin = onCall(async (request) => {
+  const { username, password } = request.data;
+  const db = getFirestore();
+  
+  const adminSnap = await db.collection('admins').where('username', '==', username).limit(1).get();
+  if (adminSnap.empty) throw new HttpsError('permission-denied', 'Invalid credentials');
+  
+  const adminDoc = adminSnap.docs[0];
+  const adminData = adminDoc.data();
+  
+  const match = await bcrypt.compare(password, adminData.passwordHash);
+  if (!match) throw new HttpsError('permission-denied', 'Invalid credentials');
+  
+  const customToken = await getAuth().createCustomToken(adminDoc.id, { admin: true });
+  
+  await db.collection('auditLog').add({
+    actorId: adminDoc.id, actorType: 'admin', action: 'admin_login', createdAt: FieldValue.serverTimestamp()
+  });
+  
+  return { token: customToken };
+});
+
+exports.getAdminDashboard = onCall(async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  
+  const [users, machines, withdrawals, payouts] = await Promise.all([
+    db.collection('users').count().get(),
+    db.collection('userMachines').where('isActive', '==', true).count().get(),
+    db.collection('withdrawals').where('status', '==', 'pending').count().get(),
+    db.collection('payouts').aggregate({ total: { sum: 'amountKes' } }).get()
+  ]);
+  
+  return {
+    totalUsers: users.data().count,
+    activeMachines: machines.data().count,
+    pendingWithdrawals: withdrawals.data().count,
+    totalPayoutsPaid: payouts.data().total || 0
+  };
+});
+
+exports.getAllUsers = onCall(async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  let query = db.collection('users').limit(50);
+  const snap = await query.get();
+  
+  const users = [];
+  for (const doc of snap.docs) {
+    const wallet = await db.collection('wallets').doc(doc.id).get();
+    users.push({ ...doc.data(), balanceKes: wallet.data()?.balanceKes || 0 });
+  }
+  return { users, hasMore: false };
+});
+
+exports.suspendUser = onCall(async (request) => {
+  requireAdmin(request);
+  const { uid, suspend } = request.data;
+  const db = getFirestore();
+  
+  await db.collection('users').doc(uid).update({ isActive: !suspend });
+  await db.collection('auditLog').add({
+    actorId: request.auth.uid, actorType: 'admin', action: suspend ? 'user_suspended' : 'user_unsuspended',
+    targetId: uid, createdAt: FieldValue.serverTimestamp()
+  });
+  return { success: true };
+});
+
+exports.approveWithdrawal = onCall(async (request) => {
+  requireAdmin(request);
+  const { withdrawalId } = request.data;
+  const db = getFirestore();
+  
+  await db.runTransaction(async (t) => {
+    const wdRef = db.collection('withdrawals').doc(withdrawalId);
+    const wdSnap = await t.get(wdRef);
+    if (!wdSnap.exists || wdSnap.data().status !== 'pending') throw new HttpsError('failed-precondition', 'Invalid withdrawal');
+    
+    const wd = wdSnap.data();
+    const walletRef = db.collection('wallets').doc(wd.userId);
+    
+    t.update(wdRef, { status: 'paid', approvedBy: request.auth.uid, processedAt: FieldValue.serverTimestamp() });
+    t.update(walletRef, { lockedBalance: FieldValue.increment(-wd.amountKes), totalWithdrawn: FieldValue.increment(wd.amountKes) });
+    
+    const txRef = db.collection('transactions').doc();
+    t.set(txRef, {
+      userId: wd.userId, type: 'withdrawal', amountKes: wd.amountKes, direction: 'debit',
+      description: 'Withdrawal Approved', status: 'completed', createdAt: FieldValue.serverTimestamp()
+    });
+  });
+  
+  const wd = (await db.collection('withdrawals').doc(withdrawalId).get()).data();
+  await sendFCMToUser(wd.userId, '✅ Withdrawal Approved', `Your KES ${wd.amountKes} withdrawal has been sent.`, 'withdrawal');
+  
+  await db.collection('auditLog').add({
+    actorId: request.auth.uid, actorType: 'admin', action: 'withdrawal_approved', targetId: withdrawalId, createdAt: FieldValue.serverTimestamp()
+  });
+  return { success: true };
+});
+
+exports.rejectWithdrawal = onCall(async (request) => {
+  requireAdmin(request);
+  const { withdrawalId, reason } = request.data;
+  const db = getFirestore();
+  
+  await db.runTransaction(async (t) => {
+    const wdRef = db.collection('withdrawals').doc(withdrawalId);
+    const wdSnap = await t.get(wdRef);
+    if (!wdSnap.exists || wdSnap.data().status !== 'pending') throw new HttpsError('failed-precondition', 'Invalid withdrawal');
+    
+    const wd = wdSnap.data();
+    const walletRef = db.collection('wallets').doc(wd.userId);
+    
+    t.update(wdRef, { status: 'rejected', approvedBy: request.auth.uid, rejectionReason: reason, processedAt: FieldValue.serverTimestamp() });
+    t.update(walletRef, { lockedBalance: FieldValue.increment(-wd.amountKes), balanceKes: FieldValue.increment(wd.amountKes) });
+  });
+  
+  const wd = (await db.collection('withdrawals').doc(withdrawalId).get()).data();
+  await sendFCMToUser(wd.userId, '❌ Withdrawal Declined', `KES ${wd.amountKes} returned to wallet. Reason: ${reason}`, 'withdrawal');
+  
+  await db.collection('auditLog').add({
+    actorId: request.auth.uid, actorType: 'admin', action: 'withdrawal_rejected', targetId: withdrawalId, newValue: { reason }, createdAt: FieldValue.serverTimestamp()
+  });
+  return { success: true };
+});
+
+exports.runPayoutsNow = onCall(async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  const result = await processPayouts(db);
+  await db.collection('auditLog').add({
+    actorId: request.auth.uid, actorType: 'admin', action: 'manual_payout_triggered', createdAt: FieldValue.serverTimestamp()
+  });
+  return { success: true, processed: result.processed };
+});
+
+exports.broadcastNotification = onCall(async (request) => {
+  requireAdmin(request);
+  const { title, body, segment } = request.data;
+  const db = getFirestore();
+  
+  let userDocs = [];
+  if (segment === 'all') {
+    userDocs = (await db.collection('users').get()).docs;
+  } else if (segment === 'with_machines') {
+    const machines = await db.collection('userMachines').get();
+    const uids = [...new Set(machines.docs.map(d => d.data().userId))];
+    for (const uid of uids) {
+      const u = await db.collection('users').doc(uid).get();
+      if (u.exists) userDocs.push(u);
+    }
+  }
+  
+  const tokens = userDocs.map(d => d.data().fcmToken).filter(t => !!t);
+  if (tokens.length > 0) {
+    await getMessaging().sendEachForMulticast({ tokens, notification: { title, body } });
+  }
+  
+  const batch = db.batch();
+  userDocs.forEach(d => {
+    batch.set(db.collection('notifications').doc(), {
+      userId: d.id, title, body, type: 'promo', read: false, sentAt: FieldValue.serverTimestamp()
+    });
+  });
+  await batch.commit();
+  
+  await db.collection('auditLog').add({
+    actorId: request.auth.uid, actorType: 'admin', action: 'broadcast_sent', newValue: { segment, sent: tokens.length }, createdAt: FieldValue.serverTimestamp()
+  });
+  return { success: true, sent: tokens.length };
+});
+
+exports.updateSpinPrize = onCall(async (request) => {
+  requireAdmin(request);
+  const { prizeId, updates } = request.data;
+  const db = getFirestore();
+  await db.collection('spinPrizes').doc(prizeId).update(updates);
+  return { success: true };
+});
+
+exports.seedInitialData = onCall(async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  
+  const tiers = await db.collection('machineTiers').get();
+  if (tiers.empty) {
+    const batch = db.batch();
+    const t1 = db.collection('machineTiers').doc();
+    batch.set(t1, { name: 'Bronze Rig', icon: '🔩', priceKes: 1000, weeklyReturnPct: 5, weeklyAmountKes: 50, sortOrder: 1, isActive: true });
+    const t2 = db.collection('machineTiers').doc();
+    batch.set(t2, { name: 'Silver Rig', icon: '⚙️', priceKes: 5000, weeklyReturnPct: 6, weeklyAmountKes: 300, sortOrder: 2, isActive: true });
+    const t3 = db.collection('machineTiers').doc();
+    batch.set(t3, { name: 'Gold Rig', icon: '🏆', priceKes: 20000, weeklyReturnPct: 7, weeklyAmountKes: 1400, sortOrder: 3, isActive: true });
+    const t4 = db.collection('machineTiers').doc();
+    batch.set(t4, { name: 'Diamond Rig', icon: '💎', priceKes: 50000, weeklyReturnPct: 8, weeklyAmountKes: 4000, sortOrder: 4, isActive: true });
+    await batch.commit();
+  }
+
+  const prizes = await db.collection('spinPrizes').get();
+  if (prizes.empty) {
+    const batch = db.batch();
+    const pData = [
+      { label:"KES 1,000", prizeType:"cash", cashAmount:1000, probabilityWeight:1, isActive:true },
+      { label:"KES 500",   prizeType:"cash", cashAmount:500,  probabilityWeight:5, isActive:true },
+      { label:"KES 100",   prizeType:"cash", cashAmount:100,  probabilityWeight:10, isActive:true },
+      { label:"KES 50",    prizeType:"cash", cashAmount:50,   probabilityWeight:20, isActive:true },
+      { label:"2 Tickets", prizeType:"tickets", cashAmount:null, probabilityWeight:20, isActive:true },
+      { label:"Try Again", prizeType:"empty", cashAmount:null, probabilityWeight:44, isActive:true }
+    ];
+    pData.forEach(p => batch.set(db.collection('spinPrizes').doc(), p));
+    await batch.commit();
+  }
+
+  const badges = await db.collection('badges').get();
+  if (badges.empty) {
+    const batch = db.batch();
+    const bData = [
+      { key:"first_machine",  name:"First Machine",      emoji:"🏁", description:"Bought your first mining rig",          color:"#cd7f32" },
+      { key:"first_payout",   name:"First Payout",        emoji:"💰", description:"Received your first weekly payout",      color:"#f0a500" },
+      { key:"social_starter", name:"Social Starter",      emoji:"👥", description:"Your first referral joined BitFarm",     color:"#6ac8ff" },
+      { key:"squad_goals",    name:"Squad Goals",          emoji:"🤝", description:"5 friends joined using your code",       color:"#4caf50" },
+      { key:"lucky_spinner",  name:"Lucky Spinner",        emoji:"🎰", description:"Won your first spin wheel prize",        color:"#ff6b35" },
+      { key:"ten_k_earner",   name:"KES 10,000 Earned",   emoji:"🌟", description:"Total earnings crossed KES 10,000",      color:"#FFD700" },
+      { key:"diamond_miner",  name:"Diamond Miner",        emoji:"💎", description:"Owns the Diamond Rig",                  color:"#b9f2ff" },
+      { key:"loyal_miner",    name:"Loyal Miner",          emoji:"🔥", description:"30-day consecutive login streak",        color:"#ff4444" },
+      { key:"whale",          name:"Whale",                emoji:"🐋", description:"Total deposits above KES 50,000",        color:"#534AB7" }
+    ];
+    bData.forEach(b => batch.set(db.collection('badges').doc(b.key), b));
+    await batch.commit();
+  }
+
+  return { success: true };
+});

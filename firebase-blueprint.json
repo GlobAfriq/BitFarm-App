@@ -1,0 +1,256 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string" },
+        "fcmToken": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Wallet": {
+      "title": "Wallet",
+      "description": "User wallet balance",
+      "type": "object",
+      "properties": {
+        "balance": { "type": "number" },
+        "usdtBalance": { "type": "number" }
+      }
+    },
+    "MachineTier": {
+      "title": "MachineTier",
+      "description": "Configuration for machine tiers",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "hashrate": { "type": "number" }
+      }
+    },
+    "UserMachine": {
+      "title": "UserMachine",
+      "description": "Machines owned by users",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "tierId": { "type": "string" },
+        "purchasedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "MachineFraction": {
+      "title": "MachineFraction",
+      "description": "Fractions of machines listed for sale",
+      "type": "object",
+      "properties": {
+        "machineId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "price": { "type": "number" },
+        "fraction": { "type": "number" }
+      }
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "User transactions",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Deposit": {
+      "title": "Deposit",
+      "description": "User deposits",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Withdrawal": {
+      "title": "Withdrawal",
+      "description": "User withdrawals",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Referral": {
+      "title": "Referral",
+      "description": "User referrals",
+      "type": "object",
+      "properties": {
+        "referrerId": { "type": "string" },
+        "referredId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Payout": {
+      "title": "Payout",
+      "description": "Weekly payouts to users",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SpinTicket": {
+      "title": "SpinTicket",
+      "description": "Tickets for the spin wheel",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SpinResult": {
+      "title": "SpinResult",
+      "description": "Results of spin wheel games",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "prizeId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SpinPrize": {
+      "title": "SpinPrize",
+      "description": "Prizes available on the spin wheel",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "probability": { "type": "number" }
+      }
+    },
+    "Streak": {
+      "title": "Streak",
+      "description": "User daily login streaks",
+      "type": "object",
+      "properties": {
+        "count": { "type": "number" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notifications",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Badge": {
+      "title": "Badge",
+      "description": "Badges available to users",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Admin users",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" }
+      }
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Admin audit logs",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "action": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/wallets/{uid}": {
+      "schema": { "$ref": "#/entities/Wallet" },
+      "description": "User wallets"
+    },
+    "/machineTiers/{tierId}": {
+      "schema": { "$ref": "#/entities/MachineTier" },
+      "description": "Machine tiers"
+    },
+    "/userMachines/{machineId}": {
+      "schema": { "$ref": "#/entities/UserMachine" },
+      "description": "User machines"
+    },
+    "/machineFractions/{fracId}": {
+      "schema": { "$ref": "#/entities/MachineFraction" },
+      "description": "Machine fractions"
+    },
+    "/transactions/{txId}": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "User transactions"
+    },
+    "/deposits/{depId}": {
+      "schema": { "$ref": "#/entities/Deposit" },
+      "description": "User deposits"
+    },
+    "/withdrawals/{wdId}": {
+      "schema": { "$ref": "#/entities/Withdrawal" },
+      "description": "User withdrawals"
+    },
+    "/referrals/{refId}": {
+      "schema": { "$ref": "#/entities/Referral" },
+      "description": "User referrals"
+    },
+    "/payouts/{payId}": {
+      "schema": { "$ref": "#/entities/Payout" },
+      "description": "Weekly payouts"
+    },
+    "/spinTickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/SpinTicket" },
+      "description": "Spin tickets"
+    },
+    "/spinResults/{resultId}": {
+      "schema": { "$ref": "#/entities/SpinResult" },
+      "description": "Spin results"
+    },
+    "/spinPrizes/{prizeId}": {
+      "schema": { "$ref": "#/entities/SpinPrize" },
+      "description": "Spin prizes"
+    },
+    "/streaks/{uid}": {
+      "schema": { "$ref": "#/entities/Streak" },
+      "description": "User streaks"
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User notifications"
+    },
+    "/badges/{badgeId}": {
+      "schema": { "$ref": "#/entities/Badge" },
+      "description": "Badges"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/Admin" },
+      "description": "Admin users"
+    },
+    "/auditLog/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Audit logs"
+    }
+  }
+}

@@ -12,16 +12,16 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
     }
 
-    // Users: owner reads/creates their own doc; can only update fullName and fcmToken
+    // Users: owner reads/creates their own doc; can only update specific fields
     match /users/{uid} {
       allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
       allow create: if isSignedIn() && isOwner(uid);
       allow update: if isSignedIn() && isOwner(uid)
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['fullName', 'fcmToken', 'updatedAt', 'streakBonus', 'badgeKeys']);
+            .hasOnly(['fullName', 'fcmToken', 'updatedAt', 'streakBonus', 'badgeKeys', 'spinStreak', 'lastSpinDate']);
     }
 
-    // Wallets: read only by owner. ALL writes via Cloud Functions only.
+    // Wallets: read only by owner. Client can update.
     match /wallets/{uid} {
       allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
       allow create: if isSignedIn() && isOwner(uid)
@@ -35,17 +35,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Machine tiers: any signed-in user reads; only admin writes
+    // Machine tiers: any signed-in user reads; admin writes
     match /machineTiers/{tierId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
 
-    // User machines: owner reads only. Cloud Functions write.
+    // User machines: owner reads and writes.
     match /userMachines/{machineId} {
       allow read: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());
-      allow write: if false;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if false;
     }
 
     // Machine fractions: all signed-in users can read listed fractions

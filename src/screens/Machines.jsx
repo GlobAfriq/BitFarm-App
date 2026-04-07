@@ -75,92 +75,10 @@ export default function Machines() {
   const handleBuy = async (tier) => {
     if (!user) return;
     setLoading(true);
+    const functions = getFunctions();
+    const buyMachine = httpsCallable(functions, 'buyMachine');
     try {
-      await runTransaction(db, async (t) => {
-        const userRef = doc(db, 'users', user.uid);
-        const walletRef = doc(db, 'wallets', user.uid);
-        
-        const [userSnap, walletSnap] = await Promise.all([
-          t.get(userRef), t.get(walletRef)
-        ]);
-
-        if (!userSnap.exists() || !walletSnap.exists()) {
-          throw new Error('Data not found');
-        }
-
-        const userData = userSnap.data();
-        const walletData = walletSnap.data();
-
-        if (!userData.isActive) throw new Error('Account suspended');
-        if (walletData.balanceKes < tier.priceKes) throw new Error('Insufficient balance. Please deposit funds.');
-
-        // Deduct price
-        t.update(walletRef, {
-          balanceKes: walletData.balanceKes - tier.priceKes,
-          updatedAt: serverTimestamp()
-        });
-
-        // Create machine
-        const machineRef = doc(collection(db, 'userMachines'));
-        const now = new Date();
-        
-        // Next payout is Friday at 3 PM
-        const nextPayout = new Date(now);
-        nextPayout.setDate(now.getDate() + ((5 - now.getDay() + 7) % 7));
-        nextPayout.setHours(15, 0, 0, 0);
-        
-        // If it's already past Friday 1 PM, move to next Friday
-        if (now.getDay() === 5 && now.getHours() >= 13) {
-          nextPayout.setDate(nextPayout.getDate() + 7);
-        }
-        
-        t.set(machineRef, {
-          userId: user.uid,
-          tierId: tier.id,
-          tierName: tier.name,
-          tierIcon: tier.icon,
-          weeklyAmountKes: tier.weeklyAmountKes,
-          purchasedAt: serverTimestamp(),
-          lastPayoutAt: null,
-          nextPayoutAt: nextPayout,
-          totalPaidOut: 0,
-          ownershipPct: 100,
-          isActive: true
-        });
-
-        // Create transaction
-        const txRef = doc(collection(db, 'transactions'));
-        t.set(txRef, {
-          userId: user.uid,
-          type: 'machine_purchase',
-          amountKes: tier.priceKes,
-          direction: 'debit',
-          balanceBefore: walletData.balanceKes,
-          balanceAfter: walletData.balanceKes - tier.priceKes,
-          description: `Purchased ${tier.name}`,
-          idempotencyKey: 'buy_' + machineRef.id,
-          status: 'completed',
-          createdAt: serverTimestamp()
-        });
-
-        // Create spin tickets based on rig value
-        let numTickets = 1;
-        if (tier.name === 'Silver Rig') numTickets = 2;
-        else if (tier.name === 'Gold Rig') numTickets = 3;
-        else if (tier.name === 'Diamond Rig') numTickets = 4;
-        else if (tier.name === 'Platinum Rig') numTickets = 5;
-
-        for (let i = 0; i < numTickets; i++) {
-          const ticketRef = doc(collection(db, 'spinTickets'));
-          t.set(ticketRef, {
-            userId: user.uid,
-            source: 'machine_purchase',
-            used: false,
-            createdAt: serverTimestamp()
-          });
-        }
-      });
-
+      await buyMachine({ tierId: tier.id });
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#f0a500', '#ff6b35', '#ffffff', '#4caf50'] });
       toast.success('⛏️ Machine purchased! First payout in 7 days');
       setTab('mine');

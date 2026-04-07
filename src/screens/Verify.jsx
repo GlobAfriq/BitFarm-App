@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { verifyOTP, sendOTP } from '../services/auth';
+import { verifyOTP, sendOTP, setupRecaptcha, clearRecaptcha } from '../services/auth';
 import toast from 'react-hot-toast';
 
 export default function Verify() {
@@ -17,10 +17,16 @@ export default function Verify() {
 
   useEffect(() => {
     if (!confirmationResult) navigate('/login');
+    setupRecaptcha('recaptcha-container-verify');
+    
     const timer = setInterval(() => {
       setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
-    return () => clearInterval(timer);
+    
+    return () => {
+      clearInterval(timer);
+      clearRecaptcha();
+    };
   }, [confirmationResult, navigate]);
 
   const handleChange = (index, value) => {
@@ -71,7 +77,8 @@ export default function Verify() {
       setCountdown(60);
       toast.success('Code resent');
     } catch (error) {
-      // handled in sendOTP
+      clearRecaptcha();
+      setupRecaptcha('recaptcha-container-verify');
     }
     setLoading(false);
   };
@@ -120,6 +127,7 @@ export default function Verify() {
           </button>
         )}
       </div>
+      <div id="recaptcha-container-verify"></div>
     </motion.div>
   );
 }

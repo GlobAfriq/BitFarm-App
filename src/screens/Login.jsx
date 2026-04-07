@@ -29,6 +29,8 @@ export default function Login() {
       navigate('/verify', { state: { phone: cleanPhone } });
     } catch (error) {
       setLoading(false);
+      clearRecaptcha();
+      setupRecaptcha('recaptcha-container');
     }
   };
 

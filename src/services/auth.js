@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 
 export const setupRecaptcha = (containerId) => {
   if (!window.recaptchaVerifier) {
+    auth.useDeviceLanguage();
     window.recaptchaVerifier = new RecaptchaVerifier(auth, containerId, {
       size: 'invisible',
       callback: () => {}

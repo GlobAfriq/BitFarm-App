@@ -25,40 +25,8 @@ exports.initiateDeposit = onCall(async (request) => {
         createdAt: FieldValue.serverTimestamp()
       });
 
-      // Simulate sending an SMS to the user (In a real app, integrate Twilio or Africa's Talking here)
-      console.log(`[SIMULATED SMS to ${phoneNumber}]: Please pay KES ${amountKes} to Paybill ${paybillNumber}, Account ${accountNumber}. Your balance will update automatically.`);
-
-      // Simulate the M-Pesa C2B callback after 60 seconds (1 minute)
-      setTimeout(async () => {
-        try {
-          const deposits = await db.collection('deposits').where('checkoutRequestId', '==', mockCheckoutRequestId).get();
-          if (!deposits.empty) {
-            const depositDoc = deposits.docs[0];
-            const deposit = depositDoc.data();
-            
-            await db.runTransaction(async (t) => {
-              t.update(depositDoc.ref, { status: 'confirmed', externalRef: 'C2B' + Date.now(), confirmedAt: FieldValue.serverTimestamp() });
-              
-              const walletRef = db.collection('wallets').doc(deposit.userId);
-              t.update(walletRef, {
-                balanceKes: FieldValue.increment(amountKes),
-                totalDeposited: FieldValue.increment(amountKes),
-                updatedAt: FieldValue.serverTimestamp()
-              });
-
-              const txRef = db.collection('transactions').doc();
-              t.set(txRef, {
-                userId: deposit.userId, type: 'deposit', amountKes: amountKes,
-                direction: 'credit', description: 'M-Pesa Paybill Deposit', reference: 'C2B' + Date.now(),
-                status: 'completed', createdAt: FieldValue.serverTimestamp()
-              });
-            });
-            console.log('Simulated M-Pesa Paybill callback processed successfully.');
-          }
-        } catch (e) {
-          console.error('Simulated callback error', e);
-        }
-      }, 60000); // 60 seconds delay
+      // In a real app, integrate Twilio or Africa's Talking here to send the SMS
+      console.log(`[SMS to ${phoneNumber}]: Please pay KES ${amountKes} to Paybill ${paybillNumber}, Account ${accountNumber}. Your balance will update automatically.`);
 
       return { 
         checkoutRequestId: mockCheckoutRequestId, 

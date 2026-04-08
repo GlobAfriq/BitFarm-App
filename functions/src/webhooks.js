@@ -4,52 +4,73 @@ const crypto = require('crypto');
 const { sendFCMToUser } = require('./services/fcm');
 const { checkAndAwardBadge } = require('./services/badges');
 
-exports.mpesaCallback = onRequest(async (req, res) => {
+exports.mpesaC2BValidation = onRequest(async (req, res) => {
+  // M-Pesa C2B Validation Endpoint
+  // Always accept the payment in this example
+  res.status(200).json({
+    ResultCode: 0,
+    ResultDesc: 'Accepted'
+  });
+});
+
+exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
   const db = getFirestore();
   try {
-    const callbackData = req.body?.Body?.stkCallback;
-    if (!callbackData) return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    const { TransID, TransAmount, BillRefNumber, MSISDN } = req.body;
+    
+    if (!TransID) return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
-    if (callbackData.ResultCode === 0) {
-      const items = callbackData.CallbackMetadata.Item;
-      const amount = items.find(i => i.Name === 'Amount')?.Value;
-      const receipt = items.find(i => i.Name === 'MpesaReceiptNumber')?.Value;
-      const checkoutRequestId = callbackData.CheckoutRequestID;
+    // BillRefNumber is expected to be the user's phone number or account ID
+    // Find the pending deposit matching this account number and amount
+    // Or just find the user by phone number and credit their wallet directly
+    
+    // For this implementation, we'll find the user by phone number (BillRefNumber or MSISDN)
+    let userQuery = await db.collection('users').where('phoneNumber', '==', `+${MSISDN}`).get();
+    if (userQuery.empty) {
+      userQuery = await db.collection('users').where('phoneNumber', '==', BillRefNumber).get();
+    }
 
-      const deposits = await db.collection('deposits').where('checkoutRequestId', '==', checkoutRequestId).get();
-      if (!deposits.empty) {
-        const depositDoc = deposits.docs[0];
-        const deposit = depositDoc.data();
-        
-        await db.runTransaction(async (t) => {
-          t.update(depositDoc.ref, { status: 'confirmed', externalRef: receipt, confirmedAt: FieldValue.serverTimestamp() });
-          
-          const walletRef = db.collection('wallets').doc(deposit.userId);
-          t.update(walletRef, {
-            balanceKes: FieldValue.increment(amount),
-            totalDeposited: FieldValue.increment(amount),
-            updatedAt: FieldValue.serverTimestamp()
-          });
+    if (!userQuery.empty) {
+      const userDoc = userQuery.docs[0];
+      const userId = userDoc.id;
+      const amount = Number(TransAmount);
 
-          const txRef = db.collection('transactions').doc();
-          t.set(txRef, {
-            userId: deposit.userId, type: 'deposit', amountKes: amount,
-            direction: 'credit', description: 'M-Pesa Deposit', reference: receipt,
-            status: 'completed', createdAt: FieldValue.serverTimestamp()
-          });
+      await db.runTransaction(async (t) => {
+        // Check if this transaction was already processed
+        const existingTx = await t.get(db.collection('transactions').where('reference', '==', TransID).limit(1));
+        if (!existingTx.empty) return; // Already processed
+
+        const walletRef = db.collection('wallets').doc(userId);
+        t.update(walletRef, {
+          balanceKes: FieldValue.increment(amount),
+          totalDeposited: FieldValue.increment(amount),
+          updatedAt: FieldValue.serverTimestamp()
         });
 
-        await sendFCMToUser(deposit.userId, '✅ Deposit Confirmed!', `KES ${amount} added to your wallet`, 'deposit');
-        
-        const walletSnap = await db.collection('wallets').doc(deposit.userId).get();
-        if (walletSnap.data()?.totalDeposited > 50000) {
-          await checkAndAwardBadge(deposit.userId, 'whale');
-        }
+        const txRef = db.collection('transactions').doc();
+        t.set(txRef, {
+          userId: userId, 
+          type: 'deposit', 
+          amountKes: amount,
+          direction: 'credit', 
+          description: 'M-Pesa Paybill Deposit', 
+          reference: TransID,
+          status: 'completed', 
+          createdAt: FieldValue.serverTimestamp()
+        });
+      });
+
+      await sendFCMToUser(userId, '✅ Deposit Confirmed!', `KES ${amount} added to your wallet via Paybill`, 'deposit');
+      
+      const walletSnap = await db.collection('wallets').doc(userId).get();
+      if (walletSnap.data()?.totalDeposited > 50000) {
+        await checkAndAwardBadge(userId, 'whale');
       }
     }
+    
     res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
   } catch (error) {
-    console.error('M-Pesa callback error', error);
+    console.error('M-Pesa C2B Confirmation error', error);
     res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
   }
 });

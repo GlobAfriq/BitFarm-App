@@ -6,7 +6,7 @@ const { initiateDeposit, requestWithdrawal } = require('./src/wallet');
 const { doSpin } = require('./src/spin');
 const { recordDailyLogin } = require('./src/streak');
 const { processWeeklyPayouts } = require('./src/jobs/weeklyPayouts');
-const { mpesaCallback, nowpaymentsCallback } = require('./src/webhooks');
+const { mpesaC2BValidation, mpesaC2BConfirmation, nowpaymentsCallback } = require('./src/webhooks');
 const admin = require('./src/admin');
 
 module.exports = { 
@@ -18,7 +18,8 @@ module.exports = {
   doSpin, 
   recordDailyLogin, 
   processWeeklyPayouts,
-  mpesaCallback, 
+  mpesaC2BValidation,
+  mpesaC2BConfirmation, 
   nowpaymentsCallback, 
   ...admin 
 };

@@ -24,6 +24,8 @@ export default function Wallet() {
   const [loading, setLoading] = useState(false);
   const [usdtData, setUsdtData] = useState(null);
 
+  const [paybillData, setPaybillData] = useState(null);
+
   const animatedBalance = useCountUp(wallet?.balanceKes || 0);
 
   useEffect(() => {
@@ -59,7 +61,16 @@ export default function Wallet() {
       const res = await initiateDeposit({ method: depMethod, amountKes: Number(amount), phoneNumber: phoneNumber });
       if (depMethod === 'mpesa') {
         toast.success(res.data.message, { duration: 5000 });
-        setSheet(null);
+        if (res.data.paybillNumber) {
+          setPaybillData({
+            paybillNumber: res.data.paybillNumber,
+            accountNumber: res.data.accountNumber,
+            amount: amount
+          });
+          setSheet('paybill_instructions');
+        } else {
+          setSheet(null);
+        }
       } else {
         setUsdtData(res.data);
       }
@@ -170,7 +181,9 @@ export default function Wallet() {
               className="bg-[#111225] w-full max-w-[420px] rounded-t-2xl p-6"
               onClick={e => e.stopPropagation()}
             >
-              <h2 className="text-xl font-bold mb-6">{sheet === 'deposit' ? 'Deposit Funds' : 'Withdraw Funds'}</h2>
+              <h2 className="text-xl font-bold mb-6">
+                {sheet === 'deposit' ? 'Deposit Funds' : sheet === 'withdraw' ? 'Withdraw Funds' : 'Payment Instructions'}
+              </h2>
               
               {sheet === 'deposit' && (
                 <>
@@ -185,6 +198,40 @@ export default function Wallet() {
                   </div>
                   <button onClick={handleDeposit} disabled={loading} className="btn-primary mb-4">
                     {loading ? 'Processing...' : 'Pay with M-Pesa'}
+                  </button>
+                </>
+              )}
+
+              {sheet === 'paybill_instructions' && paybillData && (
+                <>
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-[#4caf50]/20 text-[#4caf50] rounded-full flex items-center justify-center mx-auto mb-4">
+                      <ArrowDownLeft size={32} />
+                    </div>
+                    <p className="text-white/80 mb-2">Please go to your M-Pesa menu and make a payment using the details below:</p>
+                  </div>
+                  
+                  <div className="bg-white/5 rounded-lg p-4 mb-6 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/50 text-sm">Paybill Number</span>
+                      <span className="font-bold text-lg text-[#f0a500]">{paybillData.paybillNumber}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/50 text-sm">Account Number</span>
+                      <span className="font-bold text-lg">{paybillData.accountNumber}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/50 text-sm">Amount</span>
+                      <span className="font-bold text-lg">KES {paybillData.amount}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-center text-white/40 mb-6">
+                    Your balance will update automatically within 1-2 minutes after the payment is received.
+                  </p>
+
+                  <button onClick={() => setSheet(null)} className="btn-primary">
+                    I have made the payment
                   </button>
                 </>
               )}

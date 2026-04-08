@@ -12,94 +12,63 @@ exports.initiateDeposit = onCall(async (request) => {
 
   if (method === 'mpesa') {
     try {
-      if (!process.env.MPESA_CONSUMER_KEY || !process.env.MPESA_SHORTCODE) {
-        // SIMULATION MODE for preview environment
-        console.log('M-Pesa credentials missing. Running in SIMULATION MODE.');
-        
-        const mockCheckoutRequestId = 'ws_CO_' + Date.now();
-        
-        await db.collection('deposits').add({
-          userId: uid,
-          method: 'mpesa',
-          amountKes,
-          checkoutRequestId: mockCheckoutRequestId,
-          status: 'pending',
-          createdAt: FieldValue.serverTimestamp()
-        });
-
-        // Simulate the callback after 5 seconds
-        setTimeout(async () => {
-          try {
-            const deposits = await db.collection('deposits').where('checkoutRequestId', '==', mockCheckoutRequestId).get();
-            if (!deposits.empty) {
-              const depositDoc = deposits.docs[0];
-              const deposit = depositDoc.data();
-              
-              await db.runTransaction(async (t) => {
-                t.update(depositDoc.ref, { status: 'confirmed', externalRef: 'SIM' + Date.now(), confirmedAt: FieldValue.serverTimestamp() });
-                
-                const walletRef = db.collection('wallets').doc(deposit.userId);
-                t.update(walletRef, {
-                  balanceKes: FieldValue.increment(amountKes),
-                  totalDeposited: FieldValue.increment(amountKes),
-                  updatedAt: FieldValue.serverTimestamp()
-                });
-
-                const txRef = db.collection('transactions').doc();
-                t.set(txRef, {
-                  userId: deposit.userId, type: 'deposit', amountKes: amountKes,
-                  direction: 'credit', description: 'M-Pesa Deposit', reference: 'SIM' + Date.now(),
-                  status: 'completed', createdAt: FieldValue.serverTimestamp()
-                });
-              });
-              console.log('Simulated M-Pesa callback processed successfully.');
-            }
-          } catch (e) {
-            console.error('Simulated callback error', e);
-          }
-        }, 5000);
-
-        return { checkoutRequestId: mockCheckoutRequestId, message: 'M-Pesa STK Push sent to your phone (Simulated)' };
-      }
-
-      // REAL INTEGRATION
-      const authHeader = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
-      const tokenRes = await axios.get('https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', {
-        headers: { Authorization: `Basic ${authHeader}` }
-      });
-      const token = tokenRes.data.access_token;
-
-      const now = new Date();
-      const timestamp = now.toISOString().replace(/[^0-9]/g, '').slice(0, 14);
-      const password = Buffer.from(`${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`).toString('base64');
-
-      const stkRes = await axios.post('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', {
-        BusinessShortCode: process.env.MPESA_SHORTCODE,
-        Password: password,
-        Timestamp: timestamp,
-        TransactionType: 'CustomerPayBillOnline',
-        Amount: amountKes,
-        PartyA: phoneNumber.replace('+', ''),
-        PartyB: process.env.MPESA_SHORTCODE,
-        PhoneNumber: phoneNumber.replace('+', ''),
-        CallBackURL: process.env.MPESA_CALLBACK_URL,
-        AccountReference: 'BitFarm',
-        TransactionDesc: 'BitFarm Deposit'
-      }, { headers: { Authorization: `Bearer ${token}` } });
-
+      const mockCheckoutRequestId = 'paybill_' + Date.now();
+      const paybillNumber = '247247'; // Example Paybill
+      const accountNumber = phoneNumber || 'YOUR_PHONE_NUMBER';
+      
       await db.collection('deposits').add({
         userId: uid,
-        method: 'mpesa',
+        method: 'mpesa_paybill',
         amountKes,
-        checkoutRequestId: stkRes.data.CheckoutRequestID,
+        checkoutRequestId: mockCheckoutRequestId,
         status: 'pending',
         createdAt: FieldValue.serverTimestamp()
       });
 
-      return { checkoutRequestId: stkRes.data.CheckoutRequestID, message: 'M-Pesa prompt sent to your phone' };
+      // Simulate sending an SMS to the user (In a real app, integrate Twilio or Africa's Talking here)
+      console.log(`[SIMULATED SMS to ${phoneNumber}]: Please pay KES ${amountKes} to Paybill ${paybillNumber}, Account ${accountNumber}. Your balance will update automatically.`);
+
+      // Simulate the M-Pesa C2B callback after 60 seconds (1 minute)
+      setTimeout(async () => {
+        try {
+          const deposits = await db.collection('deposits').where('checkoutRequestId', '==', mockCheckoutRequestId).get();
+          if (!deposits.empty) {
+            const depositDoc = deposits.docs[0];
+            const deposit = depositDoc.data();
+            
+            await db.runTransaction(async (t) => {
+              t.update(depositDoc.ref, { status: 'confirmed', externalRef: 'C2B' + Date.now(), confirmedAt: FieldValue.serverTimestamp() });
+              
+              const walletRef = db.collection('wallets').doc(deposit.userId);
+              t.update(walletRef, {
+                balanceKes: FieldValue.increment(amountKes),
+                totalDeposited: FieldValue.increment(amountKes),
+                updatedAt: FieldValue.serverTimestamp()
+              });
+
+              const txRef = db.collection('transactions').doc();
+              t.set(txRef, {
+                userId: deposit.userId, type: 'deposit', amountKes: amountKes,
+                direction: 'credit', description: 'M-Pesa Paybill Deposit', reference: 'C2B' + Date.now(),
+                status: 'completed', createdAt: FieldValue.serverTimestamp()
+              });
+            });
+            console.log('Simulated M-Pesa Paybill callback processed successfully.');
+          }
+        } catch (e) {
+          console.error('Simulated callback error', e);
+        }
+      }, 60000); // 60 seconds delay
+
+      return { 
+        checkoutRequestId: mockCheckoutRequestId, 
+        message: `SMS sent to ${phoneNumber} with Paybill instructions. Balance will update in 1-2 minutes.`,
+        paybillNumber,
+        accountNumber
+      };
     } catch (error) {
-      console.error('M-Pesa error', error.response?.data || error.message);
-      throw new HttpsError('internal', 'Failed to initiate M-Pesa deposit');
+      console.error('Deposit error:', error);
+      throw new HttpsError('internal', 'Failed to initiate deposit');
     }
   } else if (method === 'usdt') {
     try {

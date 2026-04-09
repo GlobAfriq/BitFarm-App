@@ -102,24 +102,24 @@ exports.verifyDeposit = onCall(async (request) => {
       const mpesaTxDoc = await t.get(mpesaTxRef);
 
       if (!mpesaTxDoc.exists) {
-        throw new HttpsError('not-found', 'Transaction not found. Please ensure you entered the correct code and wait a moment for the SMS to be processed.');
+        return { error: 'not-found', message: 'Transaction not found. Please ensure you entered the correct code and wait a moment for the SMS to be processed.' };
       }
 
       const mpesaTx = mpesaTxDoc.data();
 
       if (mpesaTx.used) {
-        throw new HttpsError('already-exists', 'Code already used');
+        return { error: 'already-exists', message: 'Code already used' };
       }
 
       if (mpesaTx.amount !== expectedAmount) {
-        throw new HttpsError('invalid-argument', `Amount mismatch. Expected KES ${expectedAmount}, but transaction was for KES ${mpesaTx.amount}`);
+        return { error: 'invalid-argument', message: `Amount mismatch. Expected KES ${expectedAmount}, but transaction was for KES ${mpesaTx.amount}` };
       }
 
       // Time window validation (15 minutes)
-      const txTime = mpesaTx.createdAt.toMillis();
+      const txTime = mpesaTx.createdAt ? mpesaTx.createdAt.toMillis() : Date.now();
       const now = Date.now();
       if (now - txTime > 15 * 60 * 1000) {
-        throw new HttpsError('failed-precondition', 'Transaction expired. Only recent transactions can be verified.');
+        return { error: 'failed-precondition', message: 'Transaction expired. Only recent transactions can be verified.' };
       }
 
       // Mark as used
@@ -160,11 +160,17 @@ exports.verifyDeposit = onCall(async (request) => {
       return { success: true, amount: mpesaTx.amount };
     });
 
+    if (result.error) {
+      throw new HttpsError(result.error, result.message);
+    }
+
     return result;
   } catch (error) {
     console.error('Verification error:', error);
-    if (error instanceof HttpsError) throw error;
-    throw new HttpsError('internal', 'Verification failed');
+    if (error instanceof HttpsError || error.code) {
+      throw new HttpsError(error.code || 'internal', error.message);
+    }
+    throw new HttpsError('internal', error.message || 'Verification failed');
   }
 });
 

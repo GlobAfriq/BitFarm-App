@@ -16,13 +16,34 @@ exports.receiveMpesaSMS = onRequest(async (req, res) => {
       }
     }
 
-    const { mpesaCode, amount, phone, rawMessage } = req.body;
+    const rawMessage = req.body.rawMessage || req.body.text || req.body.message;
 
-    if (!mpesaCode || !amount || !phone || !rawMessage) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!rawMessage) {
+      return res.status(400).json({ error: 'Missing rawMessage field in JSON body' });
     }
 
-    const code = mpesaCode.toUpperCase().trim();
+    // Extract M-Pesa Code (10 alphanumeric characters anywhere in the message)
+    // NCBA messages usually have "Ref: QGH7S8X2K" or similar.
+    const codeMatch = rawMessage.match(/\b[A-Z0-9]{10}\b/i);
+    // Extract Amount (e.g., KES 1,500.00, KES1500, Ksh 1500)
+    const amountMatch = rawMessage.match(/(?:KES|Ksh)\s*([\d,.]+)/i);
+    // Extract Phone Number (e.g., 2547XXXXXXXX, 07XXXXXXXX, 2541XXXXXXXX, 01XXXXXXXX)
+    const phoneMatch = rawMessage.match(/(2547\d{8}|07\d{8}|2541\d{8}|01\d{8})/);
+
+    if (!codeMatch || !amountMatch) {
+      console.error('Failed to parse SMS:', rawMessage);
+      // Save unparsed SMS for manual review so you don't lose data
+      await db.collection('unparsed_sms').add({
+        rawMessage,
+        createdAt: FieldValue.serverTimestamp()
+      });
+      return res.status(400).json({ error: 'Could not parse M-Pesa SMS format' });
+    }
+
+    const code = codeMatch[0].toUpperCase();
+    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+    const phone = phoneMatch ? phoneMatch[0] : 'UNKNOWN';
+
     const txRef = db.collection('mpesa_transactions').doc(code);
     
     await db.runTransaction(async (t) => {

@@ -64,6 +64,15 @@ service cloud.firestore {
     }
 
     // Deposits: owner reads. Cloud Functions write.
+    match /mpesa_transactions/{txId} {
+      allow read, write: if false; // Only Cloud Functions can access
+    }
+
+    match /verification_attempts/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if false;
+    }
+
     match /deposits/{depId} {
       allow read: if isSignedIn() &&
         (resource.data.userId == request.auth.uid || isAdmin());

@@ -12,25 +12,20 @@ exports.initiateDeposit = onCall(async (request) => {
 
   if (method === 'mpesa') {
     try {
-      const mockCheckoutRequestId = 'paybill_' + Date.now();
-      const paybillNumber = '247247'; // Example Paybill
-      const accountNumber = phoneNumber || 'YOUR_PHONE_NUMBER';
+      const paybillNumber = '880100';
+      const accountNumber = '9412260019';
       
-      await db.collection('deposits').add({
+      const depositRef = await db.collection('deposits').add({
         userId: uid,
-        method: 'mpesa_paybill',
+        method: 'mpesa_sms',
         amountKes,
-        checkoutRequestId: mockCheckoutRequestId,
         status: 'pending',
         createdAt: FieldValue.serverTimestamp()
       });
 
-      // In a real app, integrate Twilio or Africa's Talking here to send the SMS
-      console.log(`[SMS to ${phoneNumber}]: Please pay KES ${amountKes} to Paybill ${paybillNumber}, Account ${accountNumber}. Your balance will update automatically.`);
-
       return { 
-        checkoutRequestId: mockCheckoutRequestId, 
-        message: `SMS sent to ${phoneNumber} with Paybill instructions. Balance will update in 1-2 minutes.`,
+        depositId: depositRef.id,
+        message: `Please pay KES ${amountKes} to Paybill ${paybillNumber}, Account ${accountNumber}.`,
         paybillNumber,
         accountNumber
       };
@@ -63,6 +58,113 @@ exports.initiateDeposit = onCall(async (request) => {
     }
   } else {
     throw new HttpsError('invalid-argument', 'Invalid method');
+  }
+});
+
+exports.verifyDeposit = onCall(async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in');
+  const uid = request.auth.uid;
+  const { mpesaCode, expectedAmount } = request.data;
+  const db = getFirestore();
+
+  if (!mpesaCode || !expectedAmount) {
+    throw new HttpsError('invalid-argument', 'Missing mpesaCode or expectedAmount');
+  }
+
+  const code = mpesaCode.toUpperCase().trim();
+
+  // Rate limiting: Check recent verification attempts
+  const attemptsRef = db.collection('verification_attempts').doc(uid);
+  const attemptsDoc = await attemptsRef.get();
+  
+  if (attemptsDoc.exists) {
+    const data = attemptsDoc.data();
+    const now = Date.now();
+    const windowStart = now - 15 * 60 * 1000; // 15 minutes
+    
+    const recentAttempts = (data.timestamps || []).filter(t => t.toMillis() > windowStart);
+    if (recentAttempts.length >= 5) {
+      throw new HttpsError('resource-exhausted', 'Too many verification attempts. Please try again later.');
+    }
+    
+    await attemptsRef.update({
+      timestamps: FieldValue.arrayUnion(FieldValue.serverTimestamp())
+    });
+  } else {
+    await attemptsRef.set({
+      timestamps: [FieldValue.serverTimestamp()]
+    });
+  }
+
+  try {
+    const result = await db.runTransaction(async (t) => {
+      const mpesaTxRef = db.collection('mpesa_transactions').doc(code);
+      const mpesaTxDoc = await t.get(mpesaTxRef);
+
+      if (!mpesaTxDoc.exists) {
+        throw new HttpsError('not-found', 'Transaction not found. Please ensure you entered the correct code and wait a moment for the SMS to be processed.');
+      }
+
+      const mpesaTx = mpesaTxDoc.data();
+
+      if (mpesaTx.used) {
+        throw new HttpsError('already-exists', 'Code already used');
+      }
+
+      if (mpesaTx.amount !== expectedAmount) {
+        throw new HttpsError('invalid-argument', `Amount mismatch. Expected KES ${expectedAmount}, but transaction was for KES ${mpesaTx.amount}`);
+      }
+
+      // Time window validation (15 minutes)
+      const txTime = mpesaTx.createdAt.toMillis();
+      const now = Date.now();
+      if (now - txTime > 15 * 60 * 1000) {
+        throw new HttpsError('failed-precondition', 'Transaction expired. Only recent transactions can be verified.');
+      }
+
+      // Mark as used
+      t.update(mpesaTxRef, { used: true, usedBy: uid, usedAt: FieldValue.serverTimestamp() });
+
+      // Update wallet
+      const walletRef = db.collection('wallets').doc(uid);
+      t.update(walletRef, {
+        balanceKes: FieldValue.increment(mpesaTx.amount),
+        totalDeposited: FieldValue.increment(mpesaTx.amount),
+        updatedAt: FieldValue.serverTimestamp()
+      });
+
+      // Create deposit record
+      const depositRef = db.collection('deposits').doc();
+      t.set(depositRef, {
+        userId: uid,
+        mpesaCode: code,
+        amountKes: mpesaTx.amount,
+        status: 'confirmed',
+        createdAt: FieldValue.serverTimestamp(),
+        verifiedAt: FieldValue.serverTimestamp()
+      });
+
+      // Create transaction record
+      const txRef = db.collection('transactions').doc();
+      t.set(txRef, {
+        userId: uid,
+        type: 'deposit',
+        amountKes: mpesaTx.amount,
+        direction: 'credit',
+        description: 'M-Pesa SMS Deposit',
+        reference: code,
+        status: 'completed',
+        createdAt: FieldValue.serverTimestamp()
+      });
+
+      return { success: true, amount: mpesaTx.amount };
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Verification error:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Verification failed');
   }
 });
 

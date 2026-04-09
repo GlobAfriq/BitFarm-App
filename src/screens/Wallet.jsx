@@ -26,6 +26,8 @@ export default function Wallet() {
 
   const [paybillData, setPaybillData] = useState(null);
 
+  const [mpesaCode, setMpesaCode] = useState('');
+
   const animatedBalance = useCountUp(wallet?.balanceKes || 0);
 
   useEffect(() => {
@@ -60,22 +62,41 @@ export default function Wallet() {
     try {
       const res = await initiateDeposit({ method: depMethod, amountKes: Number(amount), phoneNumber: phoneNumber });
       if (depMethod === 'mpesa') {
-        toast.success(res.data.message, { duration: 5000 });
-        if (res.data.paybillNumber) {
-          setPaybillData({
-            paybillNumber: res.data.paybillNumber,
-            accountNumber: res.data.accountNumber,
-            amount: amount
-          });
-          setSheet('paybill_instructions');
-        } else {
-          setSheet(null);
-        }
+        toast.success(res.data.message || 'Deposit initiated', { duration: 5000 });
+        setPaybillData({
+          paybillNumber: '880100',
+          accountNumber: '9412260019',
+          amount: amount
+        });
+        setSheet('paybill_instructions');
       } else {
         setUsdtData(res.data);
       }
     } catch (error) {
       toast.error(error.message || 'Deposit failed');
+    }
+    setLoading(false);
+  };
+
+  const handleVerifyDeposit = async () => {
+    if (!mpesaCode || mpesaCode.trim().length < 8) {
+      toast.error('Please enter a valid M-Pesa code');
+      return;
+    }
+    setLoading(true);
+    const functions = getFunctions();
+    const verifyDeposit = httpsCallable(functions, 'verifyDeposit');
+    try {
+      await verifyDeposit({ 
+        mpesaCode: mpesaCode.trim(), 
+        expectedAmount: Number(paybillData.amount) 
+      });
+      toast.success('Payment verified successfully! Balance updated.', { duration: 5000 });
+      setSheet(null);
+      setMpesaCode('');
+      setPaybillData(null);
+    } catch (error) {
+      toast.error(error.message || 'Verification failed');
     }
     setLoading(false);
   };
@@ -226,12 +247,25 @@ export default function Wallet() {
                     </div>
                   </div>
 
-                  <p className="text-xs text-center text-white/40 mb-6">
-                    Your balance will update automatically within 1-2 minutes after the payment is received.
-                  </p>
+                  <div className="mb-6">
+                    <label className="block text-xs text-white/60 mb-2">Enter M-Pesa Transaction Code</label>
+                    <input 
+                      type="text" 
+                      value={mpesaCode} 
+                      onChange={e => setMpesaCode(e.target.value.toUpperCase())} 
+                      className="input-field uppercase font-mono tracking-widest" 
+                      placeholder="e.g. QGH7S8X2K" 
+                    />
+                    <p className="text-[10px] text-white/40 mt-2">
+                      After paying, enter the 10-character code from the M-Pesa SMS to verify your deposit instantly.
+                    </p>
+                  </div>
 
-                  <button onClick={() => setSheet(null)} className="btn-primary">
-                    I have made the payment
+                  <button onClick={handleVerifyDeposit} disabled={loading || !mpesaCode} className="btn-primary">
+                    {loading ? 'Verifying...' : 'Verify Payment'}
+                  </button>
+                  <button onClick={() => setSheet(null)} disabled={loading} className="btn-outline w-full mt-3 py-3">
+                    Cancel
                   </button>
                 </>
               )}

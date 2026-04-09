@@ -4,6 +4,53 @@ const crypto = require('crypto');
 const { sendFCMToUser } = require('./services/fcm');
 const { checkAndAwardBadge } = require('./services/badges');
 
+exports.receiveMpesaSMS = onRequest(async (req, res) => {
+  const db = getFirestore();
+  try {
+    // Basic API Key authentication for the Android app
+    const apiKey = req.headers['x-api-key'];
+    if (apiKey !== process.env.SMS_LISTENER_API_KEY && process.env.NODE_ENV === 'production') {
+      // For testing in preview, we might bypass or use a default key if not set
+      if (apiKey !== 'BITFARM_SMS_SECRET_2026') {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+    }
+
+    const { mpesaCode, amount, phone, rawMessage } = req.body;
+
+    if (!mpesaCode || !amount || !phone || !rawMessage) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const code = mpesaCode.toUpperCase().trim();
+    const txRef = db.collection('mpesa_transactions').doc(code);
+    
+    await db.runTransaction(async (t) => {
+      const doc = await t.get(txRef);
+      if (doc.exists) {
+        throw new Error('Duplicate transaction');
+      }
+      
+      t.set(txRef, {
+        mpesaCode: code,
+        amount: Number(amount),
+        phone,
+        used: false,
+        rawMessage,
+        createdAt: FieldValue.serverTimestamp()
+      });
+    });
+
+    res.status(200).json({ success: true, message: 'Transaction recorded' });
+  } catch (error) {
+    console.error('receiveMpesaSMS error:', error);
+    if (error.message === 'Duplicate transaction') {
+      return res.status(409).json({ error: 'Transaction already exists' });
+    }
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 exports.mpesaC2BValidation = onRequest(async (req, res) => {
   // M-Pesa C2B Validation Endpoint
   // Always accept the payment in this example

@@ -27,58 +27,65 @@ async function processPayouts(db) {
 
   if (dueMachines.empty) return { processed: 0 };
 
-  const batch = db.batch();
   const notificationsToSend = [];
+  let processedCount = 0;
 
+  // Process in chunks to avoid transaction limits, but here we process each machine in its own transaction
   for (const machineDoc of dueMachines.docs) {
     const machine = machineDoc.data();
-    const walletRef = db.collection('wallets').doc(machine.userId);
-    const walletSnap = await walletRef.get();
-    const wallet = walletSnap.data();
-
     const idempotencyKey = 'payout_' + machineDoc.id + '_' + getISOWeek(now);
-    const existing = await db.collection('transactions')
-      .where('idempotencyKey', '==', idempotencyKey).limit(1).get();
-    if (!existing.empty) continue;
 
-    batch.update(walletRef, {
-      balanceKes: FieldValue.increment(machine.weeklyAmountKes),
-      totalEarned: FieldValue.increment(machine.weeklyAmountKes),
-      updatedAt: FieldValue.serverTimestamp()
-    });
+    try {
+      await db.runTransaction(async (t) => {
+        const existing = await t.get(db.collection('transactions').where('idempotencyKey', '==', idempotencyKey).limit(1));
+        if (!existing.empty) return; // Already processed
 
-    const payoutRef = db.collection('payouts').doc();
-    batch.set(payoutRef, {
-      userId: machine.userId, machineId: machineDoc.id,
-      amountKes: machine.weeklyAmountKes, payoutWeek: getISOWeek(now),
-      status: 'processed', processedAt: FieldValue.serverTimestamp(),
-      createdAt: FieldValue.serverTimestamp()
-    });
+        const walletRef = db.collection('wallets').doc(machine.userId);
+        const walletSnap = await t.get(walletRef);
+        if (!walletSnap.exists) return;
 
-    const txRef = db.collection('transactions').doc();
-    batch.set(txRef, {
-      userId: machine.userId, type: 'payout', amountKes: machine.weeklyAmountKes,
-      direction: 'credit', balanceBefore: wallet.balanceKes,
-      balanceAfter: wallet.balanceKes + machine.weeklyAmountKes,
-      description: machine.tierName + ' weekly payout',
-      idempotencyKey, status: 'completed',
-      createdAt: FieldValue.serverTimestamp()
-    });
+        const amountKes = Math.round(machine.weeklyAmountKes);
 
-    batch.update(machineDoc.ref, {
-      lastPayoutAt: FieldValue.serverTimestamp(),
-      nextPayoutAt: addDays(now, 7),
-      totalPaidOut: FieldValue.increment(machine.weeklyAmountKes)
-    });
+        t.update(walletRef, {
+          balanceKes: FieldValue.increment(amountKes),
+          totalEarned: FieldValue.increment(amountKes),
+          updatedAt: FieldValue.serverTimestamp()
+        });
 
-    notificationsToSend.push({
-      userId: machine.userId,
-      title: '⛏️ Payday!',
-      body: machine.tierName + ' just earned you KES ' + machine.weeklyAmountKes + '. Check your wallet!'
-    });
+        const payoutRef = db.collection('payouts').doc();
+        t.set(payoutRef, {
+          userId: machine.userId, machineId: machineDoc.id,
+          amountKes: amountKes, payoutWeek: getISOWeek(now),
+          status: 'processed', processedAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp()
+        });
+
+        const txRef = db.collection('transactions').doc();
+        t.set(txRef, {
+          userId: machine.userId, type: 'payout', amountKes: amountKes,
+          direction: 'credit',
+          description: machine.tierName + ' weekly payout',
+          idempotencyKey, status: 'completed',
+          createdAt: FieldValue.serverTimestamp()
+        });
+
+        t.update(machineDoc.ref, {
+          lastPayoutAt: FieldValue.serverTimestamp(),
+          nextPayoutAt: addDays(now, 7),
+          totalPaidOut: FieldValue.increment(amountKes)
+        });
+      });
+
+      notificationsToSend.push({
+        userId: machine.userId,
+        title: '⛏️ Payday!',
+        body: machine.tierName + ' just earned you KES ' + Math.round(machine.weeklyAmountKes) + '. Check your wallet!'
+      });
+      processedCount++;
+    } catch (error) {
+      console.error(`Failed to process payout for machine ${machineDoc.id}:`, error);
+    }
   }
-
-  await batch.commit();
 
   for (const n of notificationsToSend) {
     await sendFCMToUser(n.userId, n.title, n.body, 'payout');
@@ -93,11 +100,11 @@ async function processPayouts(db) {
   await db.collection('auditLog').add({
     actorId: 'system', actorType: 'system',
     action: 'weekly_payouts_processed',
-    newValue: { machinesProcessed: notificationsToSend.length, timestamp: now.toISOString() },
+    newValue: { machinesProcessed: processedCount, timestamp: now.toISOString() },
     createdAt: FieldValue.serverTimestamp()
   });
 
-  return { processed: notificationsToSend.length };
+  return { processed: processedCount };
 }
 
 exports.processWeeklyPayouts = onSchedule('0 * * * *', async () => {

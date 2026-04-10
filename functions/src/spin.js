@@ -2,11 +2,13 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { checkAndAwardBadge } = require('./services/badges');
 const { sendFCMToUser } = require('./services/fcm');
+const { requireAuth, rateLimit } = require('./utils/security');
 
 exports.doSpin = onCall(async (request) => {
-  if (!request.auth) throw new HttpsError('unauthenticated', 'Must be logged in');
-  const uid = request.auth.uid;
+  const uid = requireAuth(request);
   const db = getFirestore();
+
+  await rateLimit(db, uid, 'doSpin', 2000); // 2 seconds cooldown
 
   try {
     const result = await db.runTransaction(async (t) => {
@@ -35,22 +37,24 @@ exports.doSpin = onCall(async (request) => {
         ticketId: ticketDoc.id,
         prizeLabel: selected.label,
         prizeType: selected.prizeType,
-        cashAmount: selected.cashAmount,
+        cashAmount: selected.cashAmount || 0,
         claimed: true,
         createdAt: FieldValue.serverTimestamp()
       });
 
       if (selected.prizeType === 'cash') {
+        const cashAmount = Math.round(selected.cashAmount);
         const walletRef = db.collection('wallets').doc(uid);
         t.update(walletRef, {
-          balanceKes: FieldValue.increment(selected.cashAmount),
-          totalEarned: FieldValue.increment(selected.cashAmount),
+          balanceKes: FieldValue.increment(cashAmount),
+          totalEarned: FieldValue.increment(cashAmount),
           updatedAt: FieldValue.serverTimestamp()
         });
         const txRef = db.collection('transactions').doc();
         t.set(txRef, {
-          userId: uid, type: 'spin_win', amountKes: selected.cashAmount,
+          userId: uid, type: 'spin_win', amountKes: cashAmount,
           direction: 'credit', description: `Spin Wheel Win: ${selected.label}`,
+          idempotencyKey: `spin_${resultRef.id}`,
           status: 'completed', createdAt: FieldValue.serverTimestamp()
         });
       } else if (selected.prizeType === 'tickets') {
@@ -76,6 +80,8 @@ exports.doSpin = onCall(async (request) => {
       confetti: result.prizeType !== 'empty' 
     };
   } catch (error) {
-    throw new HttpsError('internal', error.message);
+    console.error('Spin error:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', error.message || 'Failed to spin');
   }
 });

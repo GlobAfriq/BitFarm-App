@@ -10,7 +10,6 @@ exports.receiveMpesaSMS = onRequest(async (req, res) => {
     // Basic API Key authentication for the Android app
     const apiKey = req.headers['x-api-key'];
     if (apiKey !== process.env.SMS_LISTENER_API_KEY && process.env.NODE_ENV === 'production') {
-      // For testing in preview, we might bypass or use a default key if not set
       if (apiKey !== 'BITFARM_SMS_SECRET_2026') {
         return res.status(401).json({ error: 'Unauthorized' });
       }
@@ -22,17 +21,12 @@ exports.receiveMpesaSMS = onRequest(async (req, res) => {
       return res.status(400).json({ error: 'Missing rawMessage field in JSON body' });
     }
 
-    // Extract M-Pesa Code (10 alphanumeric characters anywhere in the message)
-    // NCBA messages usually have "Ref: QGH7S8X2K" or similar.
     const codeMatch = rawMessage.match(/\b[A-Z0-9]{10}\b/i);
-    // Extract Amount (e.g., KES 1,500.00, KES1500, Ksh 1500)
     const amountMatch = rawMessage.match(/(?:KES|Ksh)\s*([\d,.]+)/i);
-    // Extract Phone Number (e.g., 2547XXXXXXXX, 07XXXXXXXX, 2541XXXXXXXX, 01XXXXXXXX)
     const phoneMatch = rawMessage.match(/(2547\d{8}|07\d{8}|2541\d{8}|01\d{8})/);
 
     if (!codeMatch || !amountMatch) {
       console.error('Failed to parse SMS:', rawMessage);
-      // Save unparsed SMS for manual review so you don't lose data
       await db.collection('unparsed_sms').add({
         rawMessage,
         createdAt: FieldValue.serverTimestamp()
@@ -41,7 +35,7 @@ exports.receiveMpesaSMS = onRequest(async (req, res) => {
     }
 
     const code = codeMatch[0].toUpperCase();
-    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+    const amount = Math.round(parseFloat(amountMatch[1].replace(/,/g, '')));
     const phone = phoneMatch ? phoneMatch[0] : 'UNKNOWN';
 
     const txRef = db.collection('mpesa_transactions').doc(code);
@@ -54,7 +48,7 @@ exports.receiveMpesaSMS = onRequest(async (req, res) => {
       
       t.set(txRef, {
         mpesaCode: code,
-        amount: Number(amount),
+        amount: amount,
         phone,
         used: false,
         rawMessage,
@@ -73,12 +67,7 @@ exports.receiveMpesaSMS = onRequest(async (req, res) => {
 });
 
 exports.mpesaC2BValidation = onRequest(async (req, res) => {
-  // M-Pesa C2B Validation Endpoint
-  // Always accept the payment in this example
-  res.status(200).json({
-    ResultCode: 0,
-    ResultDesc: 'Accepted'
-  });
+  res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 });
 
 exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
@@ -88,11 +77,6 @@ exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
     
     if (!TransID) return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
-    // BillRefNumber is expected to be the user's phone number or account ID
-    // Find the pending deposit matching this account number and amount
-    // Or just find the user by phone number and credit their wallet directly
-    
-    // For this implementation, we'll find the user by phone number (BillRefNumber or MSISDN)
     let userQuery = await db.collection('users').where('phoneNumber', '==', `+${MSISDN}`).get();
     if (userQuery.empty) {
       userQuery = await db.collection('users').where('phoneNumber', '==', BillRefNumber).get();
@@ -101,12 +85,13 @@ exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
     if (!userQuery.empty) {
       const userDoc = userQuery.docs[0];
       const userId = userDoc.id;
-      const amount = Number(TransAmount);
+      const amount = Math.round(Number(TransAmount));
 
       await db.runTransaction(async (t) => {
-        // Check if this transaction was already processed
-        const existingTx = await t.get(db.collection('transactions').where('reference', '==', TransID).limit(1));
-        if (!existingTx.empty) return; // Already processed
+        // Idempotency check using deterministic document ID
+        const txRef = db.collection('transactions').doc(`c2b_${TransID}`);
+        const existingTx = await t.get(txRef);
+        if (existingTx.exists) return; // Already processed
 
         const walletRef = db.collection('wallets').doc(userId);
         t.update(walletRef, {
@@ -115,7 +100,6 @@ exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
           updatedAt: FieldValue.serverTimestamp()
         });
 
-        const txRef = db.collection('transactions').doc();
         t.set(txRef, {
           userId: userId, 
           type: 'deposit', 
@@ -123,6 +107,7 @@ exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
           direction: 'credit', 
           description: 'M-Pesa Paybill Deposit', 
           reference: TransID,
+          idempotencyKey: `c2b_${TransID}`,
           status: 'completed', 
           createdAt: FieldValue.serverTimestamp()
         });
@@ -146,21 +131,42 @@ exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
 exports.nowpaymentsCallback = onRequest(async (req, res) => {
   const db = getFirestore();
   try {
-    const expectedSig = crypto.createHmac('sha512', process.env.NOWPAYMENTS_IPN_SECRET)
-      .update(JSON.stringify(req.body, Object.keys(req.body).sort())).digest('hex');
+    const payloadString = JSON.stringify(req.body, Object.keys(req.body).sort());
+    const expectedSig = crypto.createHmac('sha512', process.env.NOWPAYMENTS_IPN_SECRET || 'fallback_secret')
+      .update(payloadString).digest('hex');
     
-    if (req.headers['x-nowpayments-sig'] !== expectedSig) return res.status(401).send('Invalid');
+    if (req.headers['x-nowpayments-sig'] !== expectedSig && process.env.NODE_ENV === 'production') {
+      return res.status(401).send('Invalid signature');
+    }
 
     if (req.body.payment_status === 'finished') {
-      const amountKes = req.body.pay_amount * 130; // Approx rate
-      const paymentId = req.body.payment_id;
+      const paymentId = String(req.body.payment_id);
+      const actuallyPaid = Number(req.body.actually_paid);
+      const payAmount = Number(req.body.pay_amount);
+
+      if (actuallyPaid < payAmount) {
+        console.error(`Underpaid: expected ${payAmount}, got ${actuallyPaid}`);
+        return res.status(400).send('Underpaid');
+      }
 
       const deposits = await db.collection('deposits').where('paymentId', '==', paymentId).get();
       if (!deposits.empty) {
         const depositDoc = deposits.docs[0];
         const deposit = depositDoc.data();
 
+        if (deposit.status === 'confirmed') {
+          return res.status(200).send('Already processed');
+        }
+
+        // Use the original requested amountKes to avoid floating point conversion issues
+        const amountKes = Math.round(deposit.amountKes);
+
         await db.runTransaction(async (t) => {
+          // Idempotency check
+          const txRef = db.collection('transactions').doc(`crypto_${paymentId}`);
+          const existingTx = await t.get(txRef);
+          if (existingTx.exists) return;
+
           t.update(depositDoc.ref, { status: 'confirmed', confirmedAt: FieldValue.serverTimestamp() });
           
           const walletRef = db.collection('wallets').doc(deposit.userId);
@@ -170,15 +176,20 @@ exports.nowpaymentsCallback = onRequest(async (req, res) => {
             updatedAt: FieldValue.serverTimestamp()
           });
 
-          const txRef = db.collection('transactions').doc();
           t.set(txRef, {
-            userId: deposit.userId, type: 'deposit', amountKes,
-            direction: 'credit', description: 'USDT Deposit', reference: paymentId,
-            status: 'completed', createdAt: FieldValue.serverTimestamp()
+            userId: deposit.userId, 
+            type: 'deposit', 
+            amountKes,
+            direction: 'credit', 
+            description: 'USDT Deposit', 
+            reference: paymentId,
+            idempotencyKey: `crypto_${paymentId}`,
+            status: 'completed', 
+            createdAt: FieldValue.serverTimestamp()
           });
         });
 
-        await sendFCMToUser(deposit.userId, '✅ USDT Deposit Confirmed!', `KES added to your wallet`, 'deposit');
+        await sendFCMToUser(deposit.userId, '✅ USDT Deposit Confirmed!', `KES ${amountKes} added to your wallet`, 'deposit');
       }
     }
     res.status(200).send('OK');

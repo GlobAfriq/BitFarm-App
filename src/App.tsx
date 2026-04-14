@@ -28,6 +28,8 @@ import AdminSpinPrizes from './screens/admin/AdminSpinPrizes';
 import AdminNotifications from './screens/admin/AdminNotifications';
 import AdminAuditLog from './screens/admin/AdminAuditLog';
 
+import AdminDepositQueue from './screens/admin/AdminDepositQueue';
+
 const ProtectedRoute = ({ children }) => {
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]"><div className="animate-spin text-[#f0a500] text-4xl">⛏️</div></div>;
@@ -70,6 +72,7 @@ export default function App() {
             <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="deposits" element={<AdminDepositQueue />} />
               <Route path="withdrawals" element={<AdminWithdrawals />} />
               <Route path="payouts" element={<AdminPayouts />} />
               <Route path="spin-prizes" element={<AdminSpinPrizes />} />

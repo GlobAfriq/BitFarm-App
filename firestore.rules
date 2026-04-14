@@ -15,7 +15,8 @@ service cloud.firestore {
 
     // Users: owner reads/creates their own doc; can only update specific non-financial fields
     match /users/{uid} {
-      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow read: if isSignedIn() && isOwner(uid);
+      allow read: if isSignedIn() && isAdmin();
       allow create: if isSignedIn() && isOwner(uid);
       allow update: if isSignedIn() && isOwner(uid)
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -25,7 +26,8 @@ service cloud.firestore {
 
     // Wallets: read only by owner. ALL WRITES MUST HAPPEN VIA CLOUD FUNCTIONS.
     match /wallets/{uid} {
-      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow read: if isSignedIn() && isOwner(uid);
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
@@ -37,7 +39,8 @@ service cloud.firestore {
 
     // User machines: owner reads. Cloud Functions write.
     match /userMachines/{machineId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
@@ -49,7 +52,8 @@ service cloud.firestore {
 
     // Transactions: owner reads. Cloud Functions write.
     match /transactions/{txId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
@@ -63,22 +67,33 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    match /deposits/{depId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    match /depositRequests/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
+    }
+
+    match /walletLedger/{docId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
+      allow write: if false;
+    }
+
+    match /reservedTransactionCodes/{code} {
+      allow read, write: if false;
     }
 
     // Withdrawals: owner reads. Cloud Functions write.
     match /withdrawals/{wdId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
     // Referrals: referrer or referred can read. Cloud Functions write.
     match /referrals/{refId} {
-      allow read: if isSignedIn() &&
-        (resource.data.referrerId == request.auth.uid ||
-         resource.data.referredId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && (resource.data.referrerId == request.auth.uid || resource.data.referredId == request.auth.uid);
+      allow read: if isSignedIn() && isAdmin();
       allow create: if isSignedIn() && request.resource.data.referredId == request.auth.uid
         && request.resource.data.status == 'pending';
       allow update, delete: if false;
@@ -86,7 +101,8 @@ service cloud.firestore {
 
     // Payouts: owner reads. Cloud Functions write.
     match /payouts/{payoutId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
@@ -98,13 +114,15 @@ service cloud.firestore {
 
     // Spin Tickets: owner reads. Cloud Functions write.
     match /spinTickets/{ticketId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
     // Spin History: owner reads. Cloud Functions write.
     match /spinHistory/{spinId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
@@ -116,13 +134,15 @@ service cloud.firestore {
 
     // User Badges: owner reads. Cloud Functions write.
     match /userBadges/{ubId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow write: if false;
     }
 
     // Notifications: owner reads. Can only mark as read (update 'read' field only).
     match /notifications/{notifId} {
-      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && isAdmin();
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
@@ -131,7 +151,8 @@ service cloud.firestore {
 
     // Streaks: owner reads. Cloud Functions write.
     match /streaks/{uid} {
-      allow read: if isSignedIn() && (isOwner(uid) || isAdmin());
+      allow read: if isSignedIn() && isOwner(uid);
+      allow read: if isSignedIn() && isAdmin();
       allow create: if isSignedIn() && isOwner(uid)
         && request.resource.data.currentStreak == 0
         && request.resource.data.longestStreak == 0;
@@ -147,6 +168,11 @@ service cloud.firestore {
 
     // Audit log: admin read only. Cloud Functions write.
     match /auditLog/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /adminAuditLogs/{logId} {
       allow read: if isAdmin();
       allow write: if false;
     }

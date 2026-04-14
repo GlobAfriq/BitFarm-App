@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, query, where, orderBy, limit, onSnapshot, doc, setDoc, runTransaction, increment, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../services/firebase';
 import { useAuth } from '../store/AuthContext';
@@ -8,25 +8,20 @@ import useCountUp from '../hooks/useCountUp';
 import BottomNav from '../components/BottomNav';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { ArrowDownLeft, ArrowUpRight, Copy } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import DepositModal from '../components/DepositModal';
 
 export default function Wallet() {
   const { user, wallet } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState('all');
-  const [sheet, setSheet] = useState(null); // 'deposit' | 'withdraw' | null
+  const [sheet, setSheet] = useState(null); // 'withdraw' | null
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [amount, setAmount] = useState('');
-  const [depMethod, setDepMethod] = useState('mpesa');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [usdtData, setUsdtData] = useState(null);
-
-  const [paybillData, setPaybillData] = useState(null);
-
-  const [mpesaCode, setMpesaCode] = useState('');
 
   const animatedBalance = useCountUp(wallet?.balanceKes || 0);
 
@@ -46,60 +41,6 @@ export default function Wallet() {
     if (filter === 'earnings') return ['payout', 'referral_commission', 'spin_win'].includes(tx.type);
     return true;
   });
-
-  const handleDeposit = async () => {
-    if (!amount || isNaN(amount) || Number(amount) < 50) {
-      toast.error('Minimum deposit is KES 50');
-      return;
-    }
-    if (depMethod === 'mpesa' && (!phoneNumber || phoneNumber.length < 9)) {
-      toast.error('Please enter a valid M-Pesa phone number');
-      return;
-    }
-    setLoading(true);
-    const functions = getFunctions();
-    const initiateDeposit = httpsCallable(functions, 'initiateDeposit');
-    try {
-      const res = await initiateDeposit({ method: depMethod, amountKes: Number(amount), phoneNumber: phoneNumber });
-      if (depMethod === 'mpesa') {
-        toast.success(res.data.message || 'Deposit initiated', { duration: 5000 });
-        setPaybillData({
-          paybillNumber: '880100',
-          accountNumber: '9412260019',
-          amount: amount
-        });
-        setSheet('paybill_instructions');
-      } else {
-        setUsdtData(res.data);
-      }
-    } catch (error) {
-      toast.error(error.message || 'Deposit failed');
-    }
-    setLoading(false);
-  };
-
-  const handleVerifyDeposit = async () => {
-    if (!mpesaCode || mpesaCode.trim().length < 8) {
-      toast.error('Please enter a valid M-Pesa code');
-      return;
-    }
-    setLoading(true);
-    const functions = getFunctions();
-    const verifyDeposit = httpsCallable(functions, 'verifyDeposit');
-    try {
-      await verifyDeposit({ 
-        mpesaCode: mpesaCode.trim(), 
-        expectedAmount: Number(paybillData.amount) 
-      });
-      toast.success('Payment verified successfully! Balance updated.', { duration: 5000 });
-      setSheet(null);
-      setMpesaCode('');
-      setPaybillData(null);
-    } catch (error) {
-      toast.error(error.message || 'Verification failed');
-    }
-    setLoading(false);
-  };
 
   const handleWithdraw = async () => {
     if (!amount || isNaN(amount) || Number(amount) < 100) {
@@ -143,7 +84,7 @@ export default function Wallet() {
       </div>
 
       <div className="flex gap-3 mb-8">
-        <button onClick={() => { setSheet('deposit'); setAmount(''); setUsdtData(null); }} className="flex-1 btn-primary py-3">Deposit</button>
+        <button onClick={() => setShowDepositModal(true)} className="flex-1 btn-primary py-3">Deposit</button>
         <button onClick={() => { setSheet('withdraw'); setAmount(''); }} className="flex-1 btn-outline py-3">Withdraw</button>
       </div>
 
@@ -202,74 +143,8 @@ export default function Wallet() {
               className="bg-[#111225] w-full max-w-[420px] rounded-t-2xl p-6"
               onClick={e => e.stopPropagation()}
             >
-              <h2 className="text-xl font-bold mb-6">
-                {sheet === 'deposit' ? 'Deposit Funds' : sheet === 'withdraw' ? 'Withdraw Funds' : 'Payment Instructions'}
-              </h2>
+              <h2 className="text-xl font-bold mb-6">Withdraw Funds</h2>
               
-              {sheet === 'deposit' && (
-                <>
-                  <div className="mb-4">
-                    <label className="block text-xs text-white/60 mb-2">M-Pesa Phone Number</label>
-                    <input type="text" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className="input-field" placeholder="07XXXXXXXX" />
-                  </div>
-                  <div className="mb-6">
-                    <label className="block text-xs text-white/60 mb-2">Amount (KES)</label>
-                    <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="input-field text-2xl font-bold" placeholder="1000" />
-                    <p className="text-[10px] text-white/40 mt-2">Payments are processed securely via M-Pesa.</p>
-                  </div>
-                  <button onClick={handleDeposit} disabled={loading} className="btn-primary mb-4">
-                    {loading ? 'Processing...' : 'Pay with M-Pesa'}
-                  </button>
-                </>
-              )}
-
-              {sheet === 'paybill_instructions' && paybillData && (
-                <>
-                  <div className="text-center mb-6">
-                    <div className="w-16 h-16 bg-[#4caf50]/20 text-[#4caf50] rounded-full flex items-center justify-center mx-auto mb-4">
-                      <ArrowDownLeft size={32} />
-                    </div>
-                    <p className="text-white/80 mb-2">Please go to your M-Pesa menu and make a payment using the details below:</p>
-                  </div>
-                  
-                  <div className="bg-white/5 rounded-lg p-4 mb-6 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/50 text-sm">Paybill Number</span>
-                      <span className="font-bold text-lg text-[#f0a500]">{paybillData.paybillNumber}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/50 text-sm">Account Number</span>
-                      <span className="font-bold text-lg">{paybillData.accountNumber}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/50 text-sm">Amount</span>
-                      <span className="font-bold text-lg">KES {paybillData.amount}</span>
-                    </div>
-                  </div>
-
-                  <div className="mb-6">
-                    <label className="block text-xs text-white/60 mb-2">Enter M-Pesa Transaction Code</label>
-                    <input 
-                      type="text" 
-                      value={mpesaCode} 
-                      onChange={e => setMpesaCode(e.target.value.toUpperCase())} 
-                      className="input-field uppercase font-mono tracking-widest" 
-                      placeholder="e.g. QGH7S8X2K" 
-                    />
-                    <p className="text-[10px] text-white/40 mt-2">
-                      After paying, enter the 10-character code from the M-Pesa SMS to verify your deposit instantly.
-                    </p>
-                  </div>
-
-                  <button onClick={handleVerifyDeposit} disabled={loading || !mpesaCode} className="btn-primary">
-                    {loading ? 'Verifying...' : 'Verify Payment'}
-                  </button>
-                  <button onClick={() => setSheet(null)} disabled={loading} className="btn-outline w-full mt-3 py-3">
-                    Cancel
-                  </button>
-                </>
-              )}
-
               {sheet === 'withdraw' && (
                 <>
                   <div className="mb-4">
@@ -298,6 +173,8 @@ export default function Wallet() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {showDepositModal && <DepositModal onClose={() => setShowDepositModal(false)} />}
 
       <BottomNav />
     </motion.div>

@@ -2,7 +2,7 @@ const adminApp = require('firebase-admin');
 adminApp.initializeApp();
 
 const { buyMachine, sellFraction, buyFraction } = require('./src/machines');
-const { initiateDeposit, verifyDeposit, requestWithdrawal } = require('./src/wallet');
+const { submitDepositProof, requestWithdrawal } = require('./src/wallet');
 const { doSpin } = require('./src/spin');
 const { recordDailyLogin } = require('./src/streak');
 const { processWeeklyPayouts } = require('./src/jobs/weeklyPayouts');
@@ -13,8 +13,7 @@ module.exports = {
   buyMachine, 
   sellFraction, 
   buyFraction, 
-  initiateDeposit,
-  verifyDeposit,
+  submitDepositProof,
   requestWithdrawal, 
   doSpin, 
   recordDailyLogin, 

@@ -9,6 +9,7 @@ import { handleFirestoreError, OperationType } from '../../utils/firestoreErrorH
 
 export default function AdminLayout() {
   const [pendingCount, setPendingCount] = useState(0);
+  const [pendingDepositsCount, setPendingDepositsCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -16,7 +17,14 @@ export default function AdminLayout() {
   useEffect(() => {
     const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'));
     const unsub = onSnapshot(q, (snap) => setPendingCount(snap.docs.length), (error) => handleFirestoreError(error, OperationType.GET, 'withdrawals'));
-    return () => unsub();
+    
+    const qDep = query(collection(db, 'depositRequests'), where('status', '==', 'pending_admin_review'));
+    const unsubDep = onSnapshot(qDep, (snap) => setPendingDepositsCount(snap.docs.length), (error) => handleFirestoreError(error, OperationType.GET, 'depositRequests'));
+    
+    return () => {
+      unsub();
+      unsubDep();
+    };
   }, []);
 
   const handleLogout = async () => {
@@ -27,6 +35,7 @@ export default function AdminLayout() {
   const navItems = [
     { to: '/admin', icon: <LayoutDashboard size={20} />, label: 'Dashboard', end: true },
     { to: '/admin/users', icon: <Users size={20} />, label: 'Users' },
+    { to: '/admin/deposits', icon: <Banknote size={20} />, label: 'Deposits', badge: pendingDepositsCount },
     { to: '/admin/withdrawals', icon: <CreditCard size={20} />, label: 'Withdrawals', badge: pendingCount },
     { to: '/admin/payouts', icon: <Banknote size={20} />, label: 'Payouts' },
     { to: '/admin/spin-prizes', icon: <Gift size={20} />, label: 'Spin Prizes' },

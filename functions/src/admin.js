@@ -32,6 +32,124 @@ exports.signInAdmin = onCall(async (request) => {
   return { token: customToken };
 });
 
+exports.verifyDepositRequest = onCall(async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  const { depositRequestId } = request.data;
+
+  await db.runTransaction(async (t) => {
+    const requestRef = db.collection('depositRequests').doc(depositRequestId);
+    const requestSnap = await t.get(requestRef);
+
+    if (!requestSnap.exists || requestSnap.data().status !== 'pending_admin_review') {
+      throw new HttpsError('failed-precondition', 'Invalid request state');
+    }
+
+    const requestData = requestSnap.data();
+    const normalizedCode = requestData.mpesaCode;
+    const amountKes = requestData.amountKes;
+    const userId = requestData.userId;
+
+    const codeRef = db.collection('reservedTransactionCodes').doc(normalizedCode);
+    const walletRef = db.collection('wallets').doc(userId);
+    const ledgerRef = db.collection('walletLedger').doc();
+    const auditRef = db.collection('adminAuditLogs').doc();
+    const notificationRef = db.collection('notifications').doc();
+
+    // 1. Update Request
+    t.update(requestRef, { status: 'verified', resolvedAt: FieldValue.serverTimestamp() });
+    
+    // 2. Mark code as used
+    t.update(codeRef, { status: 'used' });
+
+    // 3. Credit Wallet
+    t.set(walletRef, {
+      balanceKes: FieldValue.increment(amountKes),
+      totalDeposited: FieldValue.increment(amountKes),
+      updatedAt: FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    // 4. Write Immutable Ledger Entry
+    t.set(ledgerRef, {
+      userId,
+      type: 'deposit',
+      amountKes,
+      direction: 'credit',
+      description: 'Manual M-PESA Deposit Verified',
+      reference: normalizedCode,
+      idempotencyKey: `dep_manual_${normalizedCode}`, // Prevents duplicate ledger entries
+      status: 'completed',
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    // 5. Audit Log
+    t.set(auditRef, {
+      adminId: request.auth.uid,
+      action: 'verify_deposit',
+      targetId: depositRequestId,
+      details: { amountKes, mpesaCode: normalizedCode },
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    // 6. Notification
+    t.set(notificationRef, {
+      userId,
+      title: 'Deposit Verified! ✅',
+      body: `Your deposit of KES ${amountKes} has been credited to your wallet.`,
+      read: false,
+      type: 'deposit',
+      createdAt: FieldValue.serverTimestamp()
+    });
+  });
+
+  return { success: true };
+});
+
+exports.rejectDepositRequest = onCall(async (request) => {
+  requireAdmin(request);
+  const db = getFirestore();
+  const { depositRequestId, reason } = request.data;
+
+  await db.runTransaction(async (t) => {
+    const requestRef = db.collection('depositRequests').doc(depositRequestId);
+    const requestSnap = await t.get(requestRef);
+
+    if (!requestSnap.exists || requestSnap.data().status !== 'pending_admin_review') {
+      throw new HttpsError('failed-precondition', 'Invalid request state');
+    }
+
+    const requestData = requestSnap.data();
+    const codeRef = db.collection('reservedTransactionCodes').doc(requestData.mpesaCode);
+    
+    t.update(requestRef, { 
+      status: 'rejected', 
+      rejectionReason: reason,
+      resolvedAt: FieldValue.serverTimestamp() 
+    });
+    
+    t.update(codeRef, { status: 'rejected' }); // Keep reserved but marked rejected to prevent reuse
+
+    t.set(db.collection('adminAuditLogs').doc(), {
+      adminId: request.auth.uid,
+      action: 'reject_deposit',
+      targetId: depositRequestId,
+      details: { reason, mpesaCode: requestData.mpesaCode },
+      createdAt: FieldValue.serverTimestamp()
+    });
+
+    t.set(db.collection('notifications').doc(), {
+      userId: requestData.userId,
+      title: 'Deposit Rejected ❌',
+      body: `Your deposit request was rejected. Reason: ${reason}`,
+      read: false,
+      type: 'deposit',
+      createdAt: FieldValue.serverTimestamp()
+    });
+  });
+
+  return { success: true };
+});
+
 exports.getAdminDashboard = onCall(async (request) => {
   requireAdmin(request);
   const db = getFirestore();

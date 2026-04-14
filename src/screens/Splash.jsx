@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../store/AuthContext';
 
@@ -85,15 +85,15 @@ export default function Splash() {
             >
               <button onClick={() => navigate('/login', { state: { mode: 'signup' } })} className="btn-primary py-4 text-lg">Get Started</button>
               <button onClick={() => navigate('/login', { state: { mode: 'login' } })} className="btn-outline py-4 text-lg">Log In</button>
-              
-              <div className="mt-8 flex justify-center gap-4 text-xs text-white/40">
-                <span className="cursor-pointer hover:text-white transition-colors" onClick={() => navigate('/privacy')}>Privacy Policy</span>
-                <span>•</span>
-                <span className="cursor-pointer hover:text-white transition-colors" onClick={() => navigate('/terms')}>Terms of Service</span>
-              </div>
             </motion.div>
           )}
         </AnimatePresence>
+
+        <div className="mt-8 flex justify-center gap-4 text-xs text-white/40">
+          <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+          <span>•</span>
+          <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
+        </div>
       </div>
     </motion.div>
   );

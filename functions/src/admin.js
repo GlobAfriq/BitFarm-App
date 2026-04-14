@@ -15,6 +15,25 @@ exports.signInAdmin = onCall(async (request) => {
   const db = getFirestore();
   
   const adminSnap = await db.collection('admins').where('username', '==', username).limit(1).get();
+  
+  // --- TEMPORARY BOOTSTRAP LOGIC ---
+  if (adminSnap.empty && username === 'admin' && password === 'admin123') {
+    const passwordHash = await bcrypt.hash('admin123', 10);
+    const newAdminRef = db.collection('admins').doc();
+    await newAdminRef.set({
+      username: 'admin',
+      passwordHash: passwordHash,
+      createdAt: FieldValue.serverTimestamp()
+    });
+    
+    const customToken = await getAuth().createCustomToken(newAdminRef.id, { admin: true });
+    await db.collection('auditLog').add({
+      actorId: newAdminRef.id, actorType: 'admin', action: 'admin_login_bootstrap', createdAt: FieldValue.serverTimestamp()
+    });
+    return { token: customToken };
+  }
+  // ---------------------------------
+
   if (adminSnap.empty) throw new HttpsError('permission-denied', 'Invalid credentials');
   
   const adminDoc = adminSnap.docs[0];

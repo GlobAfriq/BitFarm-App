@@ -2,7 +2,7 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getAuth } = require('firebase-admin/auth');
 const { getMessaging } = require('firebase-admin/messaging');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const { processPayouts } = require('./jobs/weeklyPayouts');
 const { sendFCMToUser } = require('./services/fcm');
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../services/firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
@@ -64,9 +64,7 @@ export const AuthProvider = ({ children }) => {
       if (timeoutId) clearTimeout(timeoutId);
       if (user) {
         timeoutId = setTimeout(() => {
-          import('firebase/auth').then(({ signOut }) => {
-            signOut(auth).catch(console.error);
-          });
+          signOut(auth).catch(console.error);
         }, INACTIVITY_LIMIT);
       }
     };

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { verifyOTP, sendOTP, setupRecaptcha, clearRecaptcha } from '../services/auth';
+import { auth } from '../services/firebase';
+import { signOut } from 'firebase/auth';
 import toast from 'react-hot-toast';
 
 export default function Verify() {
@@ -57,9 +59,7 @@ export default function Verify() {
       
       if (mode === 'signup' && !isNewUser) {
         // User is trying to sign up but already exists
-        import('firebase/auth').then(({ signOut }) => {
-          import('../services/firebase').then(({ auth }) => signOut(auth));
-        });
+        signOut(auth).catch(console.error);
         toast.error('Account already exists. Please log in instead.');
         navigate('/login', { state: { mode: 'login' } });
         return;
@@ -67,9 +67,7 @@ export default function Verify() {
       
       if (mode === 'login' && isNewUser) {
         // User is trying to log in but doesn't exist
-        import('firebase/auth').then(({ signOut }) => {
-          import('../services/firebase').then(({ auth }) => signOut(auth));
-        });
+        signOut(auth).catch(console.error);
         toast.error('Account not found. Please sign up first.');
         navigate('/login', { state: { mode: 'signup' } });
         return;

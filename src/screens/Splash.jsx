@@ -83,8 +83,14 @@ export default function Splash() {
               animate={{ opacity: 1, y: 0 }} 
               className="mt-16 w-full flex flex-col gap-4"
             >
-              <button onClick={() => navigate('/login')} className="btn-primary py-4 text-lg">Get Started</button>
-              <button onClick={() => navigate('/login')} className="btn-outline py-4 text-lg">Log In</button>
+              <button onClick={() => navigate('/login', { state: { mode: 'signup' } })} className="btn-primary py-4 text-lg">Get Started</button>
+              <button onClick={() => navigate('/login', { state: { mode: 'login' } })} className="btn-outline py-4 text-lg">Log In</button>
+              
+              <div className="mt-8 flex justify-center gap-4 text-xs text-white/40">
+                <span className="cursor-pointer hover:text-white transition-colors" onClick={() => navigate('/privacy')}>Privacy Policy</span>
+                <span>•</span>
+                <span className="cursor-pointer hover:text-white transition-colors" onClick={() => navigate('/terms')}>Terms of Service</span>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

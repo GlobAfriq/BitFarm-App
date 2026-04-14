@@ -1,5 +1,7 @@
 const adminApp = require('firebase-admin');
-adminApp.initializeApp();
+adminApp.initializeApp({
+  databaseURL: "https://gen-lang-client-0907348027-default-rtdb.europe-west1.firebasedatabase.app"
+});
 
 const { buyMachine, sellFraction, buyFraction } = require('./src/machines');
 const { submitDepositProof, requestWithdrawal } = require('./src/wallet');

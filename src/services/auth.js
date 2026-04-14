@@ -56,7 +56,7 @@ export const verifyOTP = async (confirmationResult, otpCode) => {
   }
 };
 
-export const createUserProfile = async (uid, phoneNumber, fullName, referralCode) => {
+export const createUserProfile = async (uid, phoneNumber, fullName, referralCode, country = 'Kenya') => {
   try {
     const batch = writeBatch(db);
 
@@ -76,7 +76,7 @@ export const createUserProfile = async (uid, phoneNumber, fullName, referralCode
     // Create user document
     const userRef = doc(db, 'users', uid);
     batch.set(userRef, {
-      uid, phoneNumber, fullName,
+      uid, phoneNumber, fullName, country,
       referralCode: generatedCode,
       referredBy: referrerUid,
       fcmToken: null, kycVerified: false, isActive: true, badgeKeys: [],

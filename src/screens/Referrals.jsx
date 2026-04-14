@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
-import { ref, onValue } from 'firebase/database';
-import { db, rtdb } from '../services/firebase';
+import { collection, query, where, onSnapshot, getDoc, doc, orderBy, limit } from 'firebase/firestore';
+import { db } from '../services/firebase';
 import { useAuth } from '../store/AuthContext';
 import BottomNav from '../components/BottomNav';
 import toast from 'react-hot-toast';
@@ -24,19 +23,14 @@ export default function Referrals() {
       setReferrals(refs);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'referrals'));
 
-    const lbRef = ref(rtdb, 'leaderboard/weekly');
-    const unsubLb = onValue(lbRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const sorted = Object.entries(data)
-          .map(([uid, val]) => ({ uid, ...val }))
-          .sort((a, b) => b.referralEarnings - a.referralEarnings)
-          .slice(0, 10);
+    const unsubLb = onSnapshot(
+      query(collection(db, 'leaderboard'), orderBy('referralEarnings', 'desc'), limit(10)),
+      (snap) => {
+        const sorted = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
         setLeaderboard(sorted);
-      } else {
-        setLeaderboard([]);
-      }
-    });
+      },
+      (error) => handleFirestoreError(error, OperationType.GET, 'leaderboard')
+    );
 
     return () => { unsubRefs(); unsubLb(); };
   }, [user]);
@@ -176,6 +170,11 @@ export default function Referrals() {
               );
             })
           )}
+          <div className="mt-6 p-4 bg-[#f0a500]/10 border border-[#f0a500]/30 rounded-lg text-center">
+            <p className="text-sm text-[#f0a500]">
+              <span className="font-bold">Weekly Bonus:</span> The leading referrer by every Friday at 1pm receives a bonus of KES 3,000!
+            </p>
+          </div>
         </div>
       )}
 

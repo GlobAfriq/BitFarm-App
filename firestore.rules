@@ -20,7 +20,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && isOwner(uid);
       allow update: if isSignedIn() && isOwner(uid)
         && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['fullName', 'fcmToken', 'updatedAt', 'streakBonus', 'badgeKeys', 'spinStreak', 'lastSpinDate']);
+            .hasOnly(['fullName', 'country', 'fcmToken', 'updatedAt', 'streakBonus', 'badgeKeys', 'spinStreak', 'lastSpinDate']);
       allow delete: if false;
     }
 
@@ -119,8 +119,8 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Spin History: owner reads. Cloud Functions write.
-    match /spinHistory/{spinId} {
+    // Spin Results: owner reads. Cloud Functions write.
+    match /spinResults/{spinId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow read: if isSignedIn() && isAdmin();
       allow write: if false;
@@ -147,6 +147,12 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
       allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
       allow delete: if false;
+    }
+
+    // Leaderboard: read by all, write by admin/functions
+    match /leaderboard/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false;
     }
 
     // Streaks: owner reads. Cloud Functions write.

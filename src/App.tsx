@@ -17,6 +17,9 @@ import Wallet from './screens/Wallet';
 import Profile from './screens/Profile';
 import Notifications from './screens/Notifications';
 
+import Privacy from './screens/Privacy';
+import Terms from './screens/Terms';
+
 // Admin Screens
 import AdminLogin from './screens/admin/AdminLogin';
 import AdminLayout from './screens/admin/AdminLayout';
@@ -33,7 +36,7 @@ import AdminDepositQueue from './screens/admin/AdminDepositQueue';
 const ProtectedRoute = ({ children }) => {
   const { user, profile, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]"><div className="animate-spin text-[#f0a500] text-4xl">⛏️</div></div>;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/" replace />;
   if (!profile) return <Navigate to="/create-profile" replace />;
   return children;
 };
@@ -57,6 +60,8 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/verify" element={<Verify />} />
             <Route path="/create-profile" element={<CreateProfile />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
             
             {/* Protected Routes */}
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

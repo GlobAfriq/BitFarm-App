@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 export default function Verify() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { phone } = location.state || {};
+  const { phone, mode, fullName, country } = location.state || {};
   const confirmationResult = window.confirmationResult;
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -54,8 +54,29 @@ export default function Verify() {
     setLoading(true);
     try {
       const { user, isNewUser } = await verifyOTP(confirmationResult, otpString);
+      
+      if (mode === 'signup' && !isNewUser) {
+        // User is trying to sign up but already exists
+        import('firebase/auth').then(({ signOut }) => {
+          import('../services/firebase').then(({ auth }) => signOut(auth));
+        });
+        toast.error('Account already exists. Please log in instead.');
+        navigate('/login', { state: { mode: 'login' } });
+        return;
+      }
+      
+      if (mode === 'login' && isNewUser) {
+        // User is trying to log in but doesn't exist
+        import('firebase/auth').then(({ signOut }) => {
+          import('../services/firebase').then(({ auth }) => signOut(auth));
+        });
+        toast.error('Account not found. Please sign up first.');
+        navigate('/login', { state: { mode: 'signup' } });
+        return;
+      }
+
       if (isNewUser) {
-        navigate('/create-profile', { state: { uid: user.uid, phone } });
+        navigate('/create-profile', { state: { uid: user.uid, phone, fullName, country } });
       } else {
         navigate('/dashboard');
       }

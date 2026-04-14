@@ -14,28 +14,73 @@ export const AuthProvider = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    let profileUnsub = null;
+    let walletUnsub = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
+      // Clean up previous listeners if they exist
+      if (profileUnsub) profileUnsub();
+      if (walletUnsub) walletUnsub();
+      
       if (currentUser) {
-        const tokenResult = await currentUser.getIdTokenResult();
-        setIsAdmin(!!tokenResult.claims.admin);
+        try {
+          const tokenResult = await currentUser.getIdTokenResult();
+          setIsAdmin(!!tokenResult.claims.admin);
+        } catch (e) {
+          console.error("Error getting token result", e);
+        }
 
-        const profileUnsub = onSnapshot(doc(db, 'users', currentUser.uid), (snap) => {
+        profileUnsub = onSnapshot(doc(db, 'users', currentUser.uid), (snap) => {
           setProfile(snap.exists() ? snap.data() : null);
         }, (error) => handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`));
         
-        const walletUnsub = onSnapshot(doc(db, 'wallets', currentUser.uid), (snap) => {
+        walletUnsub = onSnapshot(doc(db, 'wallets', currentUser.uid), (snap) => {
           setWallet(snap.exists() ? snap.data() : null);
         }, (error) => handleFirestoreError(error, OperationType.GET, `wallets/${currentUser.uid}`));
 
         setLoading(false);
-        return () => { profileUnsub(); walletUnsub(); };
       } else {
-        setProfile(null); setWallet(null); setIsAdmin(false); setLoading(false);
+        setProfile(null); 
+        setWallet(null); 
+        setIsAdmin(false); 
+        setLoading(false);
       }
     });
-    return () => unsubscribeAuth();
+
+    return () => {
+      unsubscribeAuth();
+      if (profileUnsub) profileUnsub();
+      if (walletUnsub) walletUnsub();
+    };
   }, []);
+
+  useEffect(() => {
+    let timeoutId;
+    const INACTIVITY_LIMIT = 5 * 60 * 1000; // 5 minutes
+
+    const handleActivity = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (user) {
+        timeoutId = setTimeout(() => {
+          import('firebase/auth').then(({ signOut }) => {
+            signOut(auth).catch(console.error);
+          });
+        }, INACTIVITY_LIMIT);
+      }
+    };
+
+    handleActivity();
+
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => window.addEventListener(event, handleActivity));
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      events.forEach(event => window.removeEventListener(event, handleActivity));
+    };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, profile, wallet, loading, isAdmin }}>

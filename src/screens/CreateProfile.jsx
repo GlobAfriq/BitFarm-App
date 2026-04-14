@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -9,24 +9,22 @@ import toast from 'react-hot-toast';
 export default function CreateProfile() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { uid, phone } = location.state || {};
-  const [fullName, setFullName] = useState('');
+  const { uid, phone, fullName, country } = location.state || {};
   const [referralCode, setReferralCode] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (!uid) {
-    navigate('/login');
-    return null;
-  }
+  useEffect(() => {
+    if (!uid) {
+      navigate('/login');
+    }
+  }, [uid, navigate]);
+
+  if (!uid) return null;
 
   const handleCreate = async () => {
-    if (fullName.trim().length < 3) {
-      toast.error('Please enter your full name');
-      return;
-    }
     setLoading(true);
     try {
-      await createUserProfile(uid, phone, fullName, referralCode);
+      await createUserProfile(uid, phone, fullName, referralCode, country);
       
       confetti({
         particleCount: 150,
@@ -52,27 +50,17 @@ export default function CreateProfile() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="min-h-screen flex flex-col px-6 pt-20">
-      <div className="text-4xl mb-6">👤</div>
-      <h1 className="text-3xl font-bold mb-2">Complete Profile</h1>
-      <p className="text-white/60 mb-10">Set up your BitFarm account</p>
+      <div className="text-4xl mb-6">✨</div>
+      <h1 className="text-3xl font-bold mb-2">Almost Done</h1>
+      <p className="text-white/60 mb-10">Do you have a referral code?</p>
 
       <div className="space-y-6 mb-8">
-        <div>
-          <label className="block text-sm font-medium text-white/60 mb-2">Full Name</label>
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="input-field py-4 text-lg"
-            placeholder="John Doe"
-          />
-        </div>
         <div>
           <label className="block text-sm font-medium text-white/60 mb-2">Referral Code (Optional)</label>
           <input
             type="text"
             value={referralCode}
-            onChange={(e) => setReferralCode(e.target.value)}
+            onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
             className="input-field py-4 text-lg uppercase"
             placeholder="JOH123"
           />
@@ -84,7 +72,7 @@ export default function CreateProfile() {
         disabled={loading} 
         className="btn-primary py-4 text-lg flex justify-center items-center"
       >
-        {loading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Create Account'}
+        {loading ? <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : 'Complete Setup'}
       </button>
     </motion.div>
   );

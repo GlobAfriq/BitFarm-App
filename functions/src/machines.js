@@ -133,6 +133,31 @@ exports.buyMachine = onCall(async (request) => {
     if (result.referrerId) {
       await sendFCMToUser(result.referrerId, '💰 Commission Earned!', `Your referral bought a machine! You earned KES ${result.commission}`, 'referral');
       await checkAndAwardBadge(result.referrerId, 'social_starter');
+
+      try {
+        const lbRef = db.collection('leaderboard').doc(result.referrerId);
+        
+        const userSnap = await db.collection('users').doc(result.referrerId).get();
+        const displayName = userSnap.exists ? userSnap.data().fullName : 'Unknown';
+        
+        const refsSnap = await db.collection('referrals')
+          .where('referrerId', '==', result.referrerId)
+          .where('status', '==', 'paid')
+          .get();
+        
+        let totalRefEarnings = 0;
+        refsSnap.forEach(doc => {
+          totalRefEarnings += (doc.data().commissionAmt || 0);
+        });
+        
+        await lbRef.set({
+          displayName,
+          referralEarnings: totalRefEarnings,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      } catch (e) {
+        console.error('Failed to update Firestore leaderboard', e);
+      }
     }
 
     await checkAndAwardBadge(uid, 'first_machine');

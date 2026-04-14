@@ -10,11 +10,12 @@ import confetti from 'canvas-confetti';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
 export default function Machines() {
-  const { user } = useAuth();
+  const { user, wallet } = useAuth();
   const [tab, setTab] = useState('shop'); // shop, mine
   const [tiers, setTiers] = useState([]);
   const [myMachines, setMyMachines] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
     const unsubTiers = onSnapshot(query(collection(db, 'machineTiers'), orderBy('sortOrder')), async (snap) => {
@@ -72,15 +73,25 @@ export default function Machines() {
     return () => { unsubTiers(); unsubMine(); };
   }, [user]);
 
-  const handleBuy = async (tier) => {
-    if (!user) return;
+  const handleBuyClick = (tier) => {
+    if (!user || !wallet) return;
+    if (wallet.balanceKes < tier.priceKes) {
+      toast.error(`Insufficient balance. You need KES ${tier.priceKes.toLocaleString()} to buy this rig.`);
+      return;
+    }
+    setConfirmModal(tier);
+  };
+
+  const handleConfirmBuy = async () => {
+    if (!confirmModal || !user) return;
     setLoading(true);
     const functions = getFunctions();
     const buyMachine = httpsCallable(functions, 'buyMachine');
     try {
-      await buyMachine({ tierId: tier.id });
+      await buyMachine({ tierId: confirmModal.id });
       confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#f0a500', '#ff6b35', '#ffffff', '#4caf50'] });
       toast.success('⛏️ Machine purchased! First payout in 7 days');
+      setConfirmModal(null);
       setTab('mine');
     } catch (error) {
       toast.error(error.message || 'Failed to buy machine');
@@ -149,7 +160,7 @@ export default function Machines() {
                 <button disabled className="w-full py-2 rounded bg-white/10 text-white/40 text-xs font-bold mt-auto">Owned ✓</button>
               ) : (
                 <button 
-                  onClick={() => handleBuy(tier)} 
+                  onClick={() => handleBuyClick(tier)} 
                   disabled={loading} 
                   className="w-full py-2 rounded bg-gradient-to-r from-[#f0a500] to-[#ff6b35] text-white text-xs font-bold active:scale-95 transition-transform mt-auto"
                 >
@@ -192,6 +203,34 @@ export default function Machines() {
               );
             })
           )}
+        </div>
+      )}
+
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#111225] p-6 rounded-xl w-full max-w-sm border border-white/10 text-center">
+            <div className="text-6xl mb-4">{confirmModal.icon}</div>
+            <h2 className="text-xl font-bold mb-2">Confirm Purchase</h2>
+            <p className="text-white/70 mb-6">
+              Are you sure you want to buy the <strong>{confirmModal.name}</strong> for <strong className="text-[#f0a500]">KES {confirmModal.priceKes.toLocaleString()}</strong>?
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setConfirmModal(null)} 
+                disabled={loading}
+                className="flex-1 py-3 rounded bg-white/10 text-white font-bold hover:bg-white/20 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmBuy} 
+                disabled={loading}
+                className="flex-1 py-3 rounded bg-gradient-to-r from-[#f0a500] to-[#ff6b35] text-white font-bold hover:opacity-90 transition-opacity"
+              >
+                {loading ? 'Processing...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

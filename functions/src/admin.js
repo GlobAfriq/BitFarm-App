@@ -11,44 +11,49 @@ const requireAdmin = (request) => {
 };
 
 exports.signInAdmin = onCall(async (request) => {
-  const { username, password } = request.data;
-  const db = getFirestore();
-  
-  const adminSnap = await db.collection('admins').where('username', '==', username).limit(1).get();
-  
-  // --- TEMPORARY BOOTSTRAP LOGIC ---
-  if (adminSnap.empty && username === 'admin' && password === 'admin123') {
-    const passwordHash = await bcrypt.hash('admin123', 10);
-    const newAdminRef = db.collection('admins').doc();
-    await newAdminRef.set({
-      username: 'admin',
-      passwordHash: passwordHash,
-      createdAt: FieldValue.serverTimestamp()
+  try {
+    const { username, password } = request.data;
+    const db = getFirestore();
+    
+    const adminSnap = await db.collection('admins').where('username', '==', username).limit(1).get();
+    
+    // --- TEMPORARY BOOTSTRAP LOGIC ---
+    if (adminSnap.empty && username === 'admin' && password === 'admin123') {
+      const passwordHash = await bcrypt.hash('admin123', 10);
+      const newAdminRef = db.collection('admins').doc('default_admin');
+      await newAdminRef.set({
+        username: 'admin',
+        passwordHash: passwordHash,
+        createdAt: FieldValue.serverTimestamp()
+      });
+      
+      const customToken = await getAuth().createCustomToken(newAdminRef.id, { admin: true });
+      await db.collection('auditLog').add({
+        actorId: newAdminRef.id, actorType: 'admin', action: 'admin_login_bootstrap', createdAt: FieldValue.serverTimestamp()
+      });
+      return { token: customToken };
+    }
+    // ---------------------------------
+
+    if (adminSnap.empty) throw new HttpsError('permission-denied', 'Invalid credentials');
+    
+    const adminDoc = adminSnap.docs[0];
+    const adminData = adminDoc.data();
+    
+    const match = await bcrypt.compare(password, adminData.passwordHash);
+    if (!match) throw new HttpsError('permission-denied', 'Invalid credentials');
+    
+    const customToken = await getAuth().createCustomToken(adminDoc.id, { admin: true });
+    
+    await db.collection('auditLog').add({
+      actorId: adminDoc.id, actorType: 'admin', action: 'admin_login', createdAt: FieldValue.serverTimestamp()
     });
     
-    const customToken = await getAuth().createCustomToken(newAdminRef.id, { admin: true });
-    await db.collection('auditLog').add({
-      actorId: newAdminRef.id, actorType: 'admin', action: 'admin_login_bootstrap', createdAt: FieldValue.serverTimestamp()
-    });
     return { token: customToken };
+  } catch (error) {
+    console.error("signInAdmin Error:", error);
+    return { error: error.message, stack: error.stack };
   }
-  // ---------------------------------
-
-  if (adminSnap.empty) throw new HttpsError('permission-denied', 'Invalid credentials');
-  
-  const adminDoc = adminSnap.docs[0];
-  const adminData = adminDoc.data();
-  
-  const match = await bcrypt.compare(password, adminData.passwordHash);
-  if (!match) throw new HttpsError('permission-denied', 'Invalid credentials');
-  
-  const customToken = await getAuth().createCustomToken(adminDoc.id, { admin: true });
-  
-  await db.collection('auditLog').add({
-    actorId: adminDoc.id, actorType: 'admin', action: 'admin_login', createdAt: FieldValue.serverTimestamp()
-  });
-  
-  return { token: customToken };
 });
 
 exports.verifyDepositRequest = onCall(async (request) => {

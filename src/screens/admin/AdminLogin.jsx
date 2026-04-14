@@ -20,6 +20,11 @@ export default function AdminLogin() {
     
     try {
       const result = await signInAdmin({ username, password });
+      
+      if (result.data.error) {
+        throw new Error(`Backend Error: ${result.data.error}`);
+      }
+
       await signInWithCustomToken(auth, result.data.token);
       toast.success('Admin logged in');
       navigate('/admin');

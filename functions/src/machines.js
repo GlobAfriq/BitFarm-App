@@ -3,11 +3,12 @@ import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {checkAndAwardBadge} from "./services/badges.js";
 import {sendFCMToUser} from "./services/fcm.js";
 import {requireAuth, validateInt, rateLimit} from "./utils/security.js";
+import {getDb} from "./utils/db.js";
 
 export const buyMachine = onCall(async (request) => {
   const uid = requireAuth(request);
   const {tierId} = request.data;
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
 
   if (!tierId || typeof tierId !== "string")
     throw new HttpsError("invalid-argument", "Invalid tierId");
@@ -229,7 +230,7 @@ export const buyMachine = onCall(async (request) => {
 
 export const sellFraction = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
   const {machineId} = request.data;
   const pctForSale = validateInt(request.data.pctForSale, 10, "pctForSale");
 
@@ -311,7 +312,7 @@ export const sellFraction = onCall(async (request) => {
 
 export const buyFraction = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
   const {fractionId} = request.data;
 
   if (!fractionId || typeof fractionId !== "string")

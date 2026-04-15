@@ -1,8 +1,9 @@
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {sendFCMToUser} from "./fcm.js";
+import {getDb} from "../utils/db.js";
 
 async function checkAndAwardBadge(userId, badgeKey) {
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
   const userRef = db.collection("users").doc(userId);
   const userSnap = await userRef.get();
   if (!userSnap.exists) return;

@@ -2,6 +2,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {sendFCMToUser} from "../services/fcm.js";
 import {checkAndAwardBadge} from "../services/badges.js";
+import {getDb} from "../utils/db.js";
 
 function getISOWeek(date) {
   const d = new Date(
@@ -136,6 +137,6 @@ export async function processPayouts(db) {
 }
 
 export const processWeeklyPayouts = onSchedule("0 * * * *", async () => {
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
   await processPayouts(db);
 });

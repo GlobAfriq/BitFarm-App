@@ -1,8 +1,5 @@
 import adminApp from "firebase-admin";
-adminApp.initializeApp({
-  databaseURL:
-    "https://gen-lang-client-0907348027-default-rtdb.europe-west1.firebasedatabase.app",
-});
+adminApp.initializeApp();
 
 import {buyMachine, sellFraction, buyFraction} from "./src/machines.js";
 import {submitDepositProof, requestWithdrawal} from "./src/wallet.js";

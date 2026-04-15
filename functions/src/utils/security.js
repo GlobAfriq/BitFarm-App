@@ -24,20 +24,33 @@ const validateInt = (val, min = 0, fieldName = "Value") => {
 };
 
 /**
- * Basic rate limiting using Firestore.
+ * Basic rate limiting using Firestore with a fixed window counter.
+ * Backwards compatible with single-request cooldowns.
  */
-const rateLimit = async (db, uid, action, limitMs) => {
-  const ref = db.collection("rate_limits").doc(`${uid}_${action}`);
+const rateLimit = async (db, identifier, action, windowMs, maxRequests = 1) => {
+  const ref = db.collection("rate_limits").doc(`${identifier}_${action}`);
   await db.runTransaction(async (t) => {
     const doc = await t.get(ref);
     const now = Date.now();
-    if (doc.exists && now - doc.data().lastAttempt < limitMs) {
-      throw new HttpsError(
-        "resource-exhausted",
-        "Too many requests. Please slow down.",
-      );
+    if (doc.exists) {
+      const data = doc.data();
+      const windowStart = data.windowStart || data.lastAttempt || 0;
+      const count = data.count || 1;
+      
+      if (now - windowStart < windowMs) {
+        if (count >= maxRequests) {
+          throw new HttpsError(
+            "resource-exhausted",
+            "Too many requests. Please slow down."
+          );
+        }
+        t.update(ref, { count: count + 1, lastAttempt: now });
+      } else {
+        t.update(ref, { windowStart: now, count: 1, lastAttempt: now });
+      }
+    } else {
+      t.set(ref, { windowStart: now, count: 1, lastAttempt: now });
     }
-    t.set(ref, {lastAttempt: now});
   });
 };
 

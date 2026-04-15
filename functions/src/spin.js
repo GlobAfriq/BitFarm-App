@@ -3,10 +3,11 @@ import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {checkAndAwardBadge} from "./services/badges.js";
 import {sendFCMToUser} from "./services/fcm.js";
 import {requireAuth, rateLimit} from "./utils/security.js";
+import {getDb} from "./utils/db.js";
 
 export const doSpin = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
 
   await rateLimit(db, uid, "doSpin", 2000); // 2 seconds cooldown
 

@@ -1,8 +1,9 @@
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
+import {getDb} from "../utils/db.js";
 
 async function sendFCMToUser(userId, title, body, type = "general") {
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
   try {
     const userDoc = await db.collection("users").doc(userId).get();
     const fcmToken = userDoc.data()?.fcmToken;

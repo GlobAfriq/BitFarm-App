@@ -2,12 +2,13 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import axios from "axios";
 import {requireAuth, validateInt, rateLimit} from "./utils/security.js";
+import {getDb} from "./utils/db.js";
 
 const normalizeCode = (code) => code.trim().toUpperCase();
 
 export const submitDepositProof = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
   const {amountKes, mpesaCode} = request.data;
 
   if (!amountKes || amountKes < 50)
@@ -73,7 +74,7 @@ export const submitDepositProof = onCall(async (request) => {
 
 export const requestWithdrawal = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore("ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791");
+  const db = getDb();
 
   const method = request.data.method;
   const amountKes = validateInt(request.data.amountKes, 100, "amountKes");

@@ -4,7 +4,10 @@ service cloud.firestore {
 
     function isSignedIn() { return request.auth != null; }
     function isOwner(uid) { return request.auth.uid == uid; }
-    function isAdmin() { return request.auth.token.admin == true; }
+    function isAdmin() { 
+      return ('admin' in request.auth.token && request.auth.token.admin == true) || 
+             ('email' in request.auth.token && request.auth.token.email == "globafriqgroup@gmail.com"); 
+    }
 
     // Referral Codes: all signed-in users can read. Users can create their own.
     match /referralCodes/{code} {

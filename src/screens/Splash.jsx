@@ -81,7 +81,23 @@ export default function Splash() {
             <motion.div 
               initial={{ opacity: 0, y: 20 }} 
               animate={{ opacity: 1, y: 0 }} 
-              className="mt-16 w-full flex flex-col gap-4"
+              className="mt-8 max-w-md text-white/70 text-sm leading-relaxed"
+            >
+              <p>
+                BitFarm is a virtual mining simulation platform. Purchase virtual mining machines, 
+                earn simulated rewards, refer friends to build your network, and participate in daily 
+                spins to win prizes. Start your virtual mining journey today!
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showButtons && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              className="mt-10 w-full flex flex-col gap-4"
             >
               <button onClick={() => navigate('/login', { state: { mode: 'signup' } })} className="btn-primary py-4 text-lg">Get Started</button>
               <button onClick={() => navigate('/login', { state: { mode: 'login' } })} className="btn-outline py-4 text-lg">Log In</button>

@@ -1,2 +1,2 @@
-const { getFirestore } = require('firebase-admin/firestore');
+import {getFirestore} from "firebase-admin/firestore";
 console.log(getFirestore.toString());

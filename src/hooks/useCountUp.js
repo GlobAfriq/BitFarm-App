@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from "react";
 
 export default function useCountUp(target, duration = 1500) {
   const [value, setValue] = useState(0);
@@ -6,7 +6,10 @@ export default function useCountUp(target, duration = 1500) {
   const startValRef = useRef(0);
 
   useEffect(() => {
-    if (target === 0) { setValue(0); return; }
+    if (target === 0) {
+      setValue(0);
+      return;
+    }
     startRef.current = null;
     startValRef.current = value;
 
@@ -15,12 +18,16 @@ export default function useCountUp(target, duration = 1500) {
       const elapsed = timestamp - startRef.current;
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      
-      setValue(Math.round(startValRef.current + (target - startValRef.current) * eased));
-      
+
+      setValue(
+        Math.round(
+          startValRef.current + (target - startValRef.current) * eased,
+        ),
+      );
+
       if (progress < 1) requestAnimationFrame(animate);
     };
-    
+
     requestAnimationFrame(animate);
   }, [target]);
 

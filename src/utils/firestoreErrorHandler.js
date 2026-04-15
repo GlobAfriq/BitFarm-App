@@ -1,12 +1,13 @@
-import { auth } from '../services/firebase';
+import { auth } from "../services/firebase";
+import toast from "react-hot-toast";
 
 export const OperationType = {
-  CREATE: 'create',
-  UPDATE: 'update',
-  DELETE: 'delete',
-  LIST: 'list',
-  GET: 'get',
-  WRITE: 'write',
+  CREATE: "create",
+  UPDATE: "update",
+  DELETE: "delete",
+  LIST: "list",
+  GET: "get",
+  WRITE: "write",
 };
 
 export function handleFirestoreError(error, operationType, path) {
@@ -18,16 +19,17 @@ export function handleFirestoreError(error, operationType, path) {
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
+      providerInfo:
+        auth.currentUser?.providerData.map((provider) => ({
+          providerId: provider.providerId,
+          displayName: provider.displayName,
+          email: provider.email,
+          photoUrl: provider.photoURL,
+        })) || [],
     },
     operationType,
-    path
+    path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error("Firestore Error: ", JSON.stringify(errInfo));
+  toast.error(`Firestore Error: ${errInfo.error}`);
 }

@@ -1,5 +1,9 @@
-importScripts('https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.0.0/firebase-messaging-compat.js');
+importScripts(
+  "https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js",
+);
+importScripts(
+  "https://www.gstatic.com/firebasejs/10.0.0/firebase-messaging-compat.js",
+);
 
 const app = firebase.initializeApp({
   projectId: "gen-lang-client-0907348027",
@@ -7,14 +11,14 @@ const app = firebase.initializeApp({
   apiKey: "AIzaSyB5Ede3Mx39U91m16jpXwO8DPydSKOW0M0",
   authDomain: "gen-lang-client-0907348027.firebaseapp.com",
   storageBucket: "gen-lang-client-0907348027.firebasestorage.app",
-  messagingSenderId: "930093175883"
+  messagingSenderId: "930093175883",
 });
 
 const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   self.registration.showNotification(payload.notification.title, {
     body: payload.notification.body,
-    icon: '/icon.png',
-    badge: '/badge.png'
+    icon: "/icon.png",
+    badge: "/badge.png",
   });
 });

@@ -34,7 +34,11 @@ import AdminAuditLog from './screens/admin/AdminAuditLog';
 import AdminDepositQueue from './screens/admin/AdminDepositQueue';
 
 const ProtectedRoute = ({ children }) => {
-  const { user, profile, loading } = useAuth();
+  const authContext = useAuth();
+  const user = authContext?.user;
+  const profile = authContext?.profile;
+  const loading = authContext?.loading;
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]"><div className="animate-spin text-[#f0a500] text-4xl">⛏️</div></div>;
   if (!user) return <Navigate to="/" replace />;
   if (!profile) return <Navigate to="/create-profile" replace />;
@@ -42,7 +46,11 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AdminRoute = ({ children }) => {
-  const { user, isAdmin, loading } = useAuth();
+  const authContext = useAuth();
+  const user = authContext?.user;
+  const isAdmin = authContext?.isAdmin;
+  const loading = authContext?.loading;
+
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-[#0a0a1a]"><div className="animate-spin text-[#f0a500] text-4xl">⛏️</div></div>;
   if (!user || !isAdmin) return <Navigate to="/admin/login" replace />;
   return children;

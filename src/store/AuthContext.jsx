@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
       if (currentUser) {
         try {
           const tokenResult = await currentUser.getIdTokenResult();
-          setIsAdmin(!!tokenResult.claims.admin);
+          setIsAdmin(!!tokenResult.claims.admin || currentUser.email === 'globafriqgroup@gmail.com');
         } catch (e) {
           console.error("Error getting token result", e);
         }

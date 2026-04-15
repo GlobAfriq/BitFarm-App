@@ -7,7 +7,8 @@ import toast from 'react-hot-toast';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
 
 export default function NotificationManager() {
-  const { user } = useAuth();
+  const authContext = useAuth();
+  const user = authContext?.user;
   const initialLoad = useRef(true);
 
   useEffect(() => {

@@ -12,7 +12,8 @@ export default function AdminLayout() {
   const [pendingDepositsCount, setPendingDepositsCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const authContext = useAuth();
+  const user = authContext?.user;
 
   useEffect(() => {
     const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'));

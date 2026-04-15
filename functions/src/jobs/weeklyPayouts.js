@@ -108,7 +108,7 @@ async function processPayouts(db) {
 }
 
 exports.processWeeklyPayouts = onSchedule('0 * * * *', async () => {
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   await processPayouts(db);
 });
 

@@ -7,7 +7,7 @@ const normalizeCode = (code) => code.trim().toUpperCase();
 
 exports.submitDepositProof = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   const { amountKes, mpesaCode } = request.data;
 
   if (!amountKes || amountKes < 50) throw new HttpsError('invalid-argument', 'Minimum deposit is KES 50');
@@ -62,7 +62,7 @@ exports.submitDepositProof = onCall(async (request) => {
 
 exports.requestWithdrawal = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
 
   const method = request.data.method;
   const amountKes = validateInt(request.data.amountKes, 100, 'amountKes');

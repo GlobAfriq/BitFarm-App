@@ -6,7 +6,7 @@ const { requireAuth, rateLimit } = require('./utils/security');
 
 exports.recordDailyLogin = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
 
   await rateLimit(db, uid, 'recordDailyLogin', 60000); // 1 minute cooldown
 

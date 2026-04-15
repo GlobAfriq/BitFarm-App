@@ -2,7 +2,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 
 async function sendFCMToUser(userId, title, body, type = 'general') {
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   try {
     const userDoc = await db.collection('users').doc(userId).get();
     const fcmToken = userDoc.data()?.fcmToken;

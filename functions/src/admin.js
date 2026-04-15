@@ -13,7 +13,7 @@ const requireAdmin = (request) => {
 exports.signInAdmin = onCall(async (request) => {
   try {
     const { username, password } = request.data;
-    const db = getFirestore();
+    const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
     
     const adminSnap = await db.collection('admins').where('username', '==', username).limit(1).get();
     
@@ -58,7 +58,7 @@ exports.signInAdmin = onCall(async (request) => {
 
 exports.verifyDepositRequest = onCall(async (request) => {
   requireAdmin(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   const { depositRequestId } = request.data;
 
   await db.runTransaction(async (t) => {
@@ -131,7 +131,7 @@ exports.verifyDepositRequest = onCall(async (request) => {
 
 exports.rejectDepositRequest = onCall(async (request) => {
   requireAdmin(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   const { depositRequestId, reason } = request.data;
 
   await db.runTransaction(async (t) => {
@@ -176,7 +176,7 @@ exports.rejectDepositRequest = onCall(async (request) => {
 
 exports.getAdminDashboard = onCall(async (request) => {
   requireAdmin(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   
   const [users, machines, withdrawals, payouts] = await Promise.all([
     db.collection('users').count().get(),
@@ -195,7 +195,7 @@ exports.getAdminDashboard = onCall(async (request) => {
 
 exports.getAllUsers = onCall(async (request) => {
   requireAdmin(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   let query = db.collection('users').limit(50);
   const snap = await query.get();
   
@@ -210,7 +210,7 @@ exports.getAllUsers = onCall(async (request) => {
 exports.suspendUser = onCall(async (request) => {
   requireAdmin(request);
   const { uid, suspend } = request.data;
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   
   await db.collection('users').doc(uid).update({ isActive: !suspend });
   await db.collection('auditLog').add({
@@ -223,7 +223,7 @@ exports.suspendUser = onCall(async (request) => {
 exports.approveWithdrawal = onCall(async (request) => {
   requireAdmin(request);
   const { withdrawalId } = request.data;
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   
   await db.runTransaction(async (t) => {
     const wdRef = db.collection('withdrawals').doc(withdrawalId);
@@ -255,7 +255,7 @@ exports.approveWithdrawal = onCall(async (request) => {
 exports.rejectWithdrawal = onCall(async (request) => {
   requireAdmin(request);
   const { withdrawalId, reason } = request.data;
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   
   await db.runTransaction(async (t) => {
     const wdRef = db.collection('withdrawals').doc(withdrawalId);
@@ -280,7 +280,7 @@ exports.rejectWithdrawal = onCall(async (request) => {
 
 exports.runPayoutsNow = onCall(async (request) => {
   requireAdmin(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   const result = await processPayouts(db);
   await db.collection('auditLog').add({
     actorId: request.auth.uid, actorType: 'admin', action: 'manual_payout_triggered', createdAt: FieldValue.serverTimestamp()
@@ -291,7 +291,7 @@ exports.runPayoutsNow = onCall(async (request) => {
 exports.broadcastNotification = onCall(async (request) => {
   requireAdmin(request);
   const { title, body, segment } = request.data;
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   
   let userDocs = [];
   if (segment === 'all') {
@@ -327,14 +327,14 @@ exports.broadcastNotification = onCall(async (request) => {
 exports.updateSpinPrize = onCall(async (request) => {
   requireAdmin(request);
   const { prizeId, updates } = request.data;
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   await db.collection('spinPrizes').doc(prizeId).update(updates);
   return { success: true };
 });
 
 exports.seedInitialData = onCall(async (request) => {
   requireAdmin(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   
   const tiers = await db.collection('machineTiers').get();
   if (tiers.empty) {

@@ -5,7 +5,7 @@ const { sendFCMToUser } = require('./services/fcm');
 const { checkAndAwardBadge } = require('./services/badges');
 
 exports.receiveMpesaSMS = onRequest(async (req, res) => {
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   try {
     // Basic API Key authentication for the Android app
     const apiKey = req.headers['x-api-key'];
@@ -71,7 +71,7 @@ exports.mpesaC2BValidation = onRequest(async (req, res) => {
 });
 
 exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   try {
     const { TransID, TransAmount, BillRefNumber, MSISDN } = req.body;
     
@@ -129,7 +129,7 @@ exports.mpesaC2BConfirmation = onRequest(async (req, res) => {
 });
 
 exports.nowpaymentsCallback = onRequest(async (req, res) => {
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   try {
     const payloadString = JSON.stringify(req.body, Object.keys(req.body).sort());
     const expectedSig = crypto.createHmac('sha512', process.env.NOWPAYMENTS_IPN_SECRET || 'fallback_secret')

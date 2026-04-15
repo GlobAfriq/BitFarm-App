@@ -7,7 +7,7 @@ const { requireAuth, validateInt, rateLimit } = require('./utils/security');
 exports.buyMachine = onCall(async (request) => {
   const uid = requireAuth(request);
   const { tierId } = request.data;
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
 
   if (!tierId || typeof tierId !== 'string') throw new HttpsError('invalid-argument', 'Invalid tierId');
 
@@ -184,7 +184,7 @@ exports.buyMachine = onCall(async (request) => {
 
 exports.sellFraction = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   const { machineId } = request.data;
   const pctForSale = validateInt(request.data.pctForSale, 10, 'pctForSale');
 
@@ -248,7 +248,7 @@ exports.sellFraction = onCall(async (request) => {
 
 exports.buyFraction = onCall(async (request) => {
   const uid = requireAuth(request);
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   const { fractionId } = request.data;
 
   if (!fractionId || typeof fractionId !== 'string') throw new HttpsError('invalid-argument', 'Invalid fractionId');

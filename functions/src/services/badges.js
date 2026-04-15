@@ -2,7 +2,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const { sendFCMToUser } = require('./fcm');
 
 async function checkAndAwardBadge(userId, badgeKey) {
-  const db = getFirestore();
+  const db = getFirestore('ai-studio-7c48d254-792c-4a9f-aed6-50d6c4dc3791');
   const userRef = db.collection('users').doc(userId);
   const userSnap = await userRef.get();
   if (!userSnap.exists) return;

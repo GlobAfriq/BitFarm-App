@@ -9,7 +9,9 @@
     "start": "node server.js",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test-db": "cd functions && node updateDbId.js",
+    "install-functions": "cd functions && npm install"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

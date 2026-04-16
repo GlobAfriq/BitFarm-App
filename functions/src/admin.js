@@ -221,15 +221,30 @@ export const getAdminDashboard = onCall(async (request) => {
 export const getAllUsers = onCall(async (request) => {
   await requireAdmin(request, getFirestore());
   const db = getFirestore();
-  const query = db.collection("users").limit(50);
+  const { lastId, pageSize = 20 } = request.data || {};
+  
+  let query = db.collection("users").orderBy("__name__").limit(pageSize);
+  
+  if (lastId) {
+    const lastDoc = await db.collection("users").doc(lastId).get();
+    if (lastDoc.exists) {
+      query = query.startAfter(lastDoc);
+    }
+  }
+  
   const snap = await query.get();
 
   const users = [];
   for (const doc of snap.docs) {
     const wallet = await db.collection("wallets").doc(doc.id).get();
-    users.push({...doc.data(), balanceKes: wallet.data()?.balanceKes || 0});
+    users.push({...doc.data(), uid: doc.id, balanceKes: wallet.data()?.balanceKes || 0});
   }
-  return {users, hasMore: false};
+  
+  return {
+    users, 
+    hasMore: snap.docs.length === pageSize,
+    lastId: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1].id : null
+  };
 });
 
 export const suspendUser = onCall(async (request) => {

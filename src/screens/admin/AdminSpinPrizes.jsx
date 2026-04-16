@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../../services/firebase';
 import toast from 'react-hot-toast';
-import { handleFirestoreError, OperationType } from '../../utils/firestoreErrorHandler';
 
 export default function AdminSpinPrizes() {
   const [prizes, setPrizes] = useState([]);
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({});
 
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'spinPrizes'), (snap) => {
+  const fetchPrizes = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'spinPrizes'));
       setPrizes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'spinPrizes'));
-    return () => unsub();
+    } catch (error) {
+      console.error("Failed to fetch spin prizes", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPrizes();
   }, []);
 
   const totalWeight = prizes.reduce((sum, p) => sum + p.probabilityWeight, 0);
@@ -26,6 +31,7 @@ export default function AdminSpinPrizes() {
       await updateSpinPrize({ prizeId: editing, updates: editForm });
       toast.success('Prize updated');
       setEditing(null);
+      fetchPrizes(); // Refresh after save
     } catch (error) {
       toast.error('Update failed');
     }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import NotificationManager from './components/NotificationManager';
@@ -56,51 +56,60 @@ const AdminRoute = ({ children }) => {
   return children;
 };
 
+const AppContent = () => {
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  return (
+    <div className={isAdminRoute ? "min-h-screen bg-[#0a0a1a]" : "app-container"}>
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/" element={<Splash />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/verify" element={<Verify />} />
+        <Route path="/create-profile" element={<CreateProfile />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
+        
+        {/* Protected Routes */}
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/machines" element={<ProtectedRoute><Machines /></ProtectedRoute>} />
+        <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
+        <Route path="/spin" element={<ProtectedRoute><Spin /></ProtectedRoute>} />
+        <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+
+        {/* Admin Routes */}
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="deposits" element={<AdminDepositQueue />} />
+          <Route path="withdrawals" element={<AdminWithdrawals />} />
+          <Route path="payouts" element={<AdminPayouts />} />
+          <Route path="spin-prizes" element={<AdminSpinPrizes />} />
+          <Route path="notifications" element={<AdminNotifications />} />
+          <Route path="audit-log" element={<AdminAuditLog />} />
+        </Route>
+      </Routes>
+    </div>
+  );
+};
+
 export default function App() {
   return (
     <AuthProvider>
       <NotificationManager />
-      <div className="app-container">
-        <BrowserRouter>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Splash />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/verify" element={<Verify />} />
-            <Route path="/create-profile" element={<CreateProfile />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            
-            {/* Protected Routes */}
-            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/machines" element={<ProtectedRoute><Machines /></ProtectedRoute>} />
-            <Route path="/referrals" element={<ProtectedRoute><Referrals /></ProtectedRoute>} />
-            <Route path="/spin" element={<ProtectedRoute><Spin /></ProtectedRoute>} />
-            <Route path="/wallet" element={<ProtectedRoute><Wallet /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-
-            {/* Admin Routes */}
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="deposits" element={<AdminDepositQueue />} />
-              <Route path="withdrawals" element={<AdminWithdrawals />} />
-              <Route path="payouts" element={<AdminPayouts />} />
-              <Route path="spin-prizes" element={<AdminSpinPrizes />} />
-              <Route path="notifications" element={<AdminNotifications />} />
-              <Route path="audit-log" element={<AdminAuditLog />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-        <Toaster 
-          position="top-center" 
-          toastOptions={{
-            style: { background: '#111225', color: '#fff', border: '1px solid #f0a500' }
-          }} 
-        />
-      </div>
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
+      <Toaster 
+        position="top-center" 
+        toastOptions={{
+          style: { background: '#111225', color: '#fff', border: '1px solid #f0a500' }
+        }} 
+      />
     </AuthProvider>
   );
 }

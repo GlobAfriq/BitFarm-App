@@ -51,7 +51,23 @@ export default function AdminLogin() {
       toast.success('Logged in with Google');
       // The useEffect will redirect if they are an admin
     } catch (error) {
-      toast.error(error.message || 'Google login failed');
+      console.error("Google Login Error:", error);
+      if (error.code === 'auth/unauthorized-domain') {
+        const domain = window.location.hostname;
+        toast.error(
+          `Domain not authorized! Please add EXACTLY this to Firebase: ${domain}`,
+          { duration: 8000 }
+        );
+        // Fallback to redirect which sometimes works better
+        setTimeout(() => {
+          toast('Trying redirect method...', { icon: '🔄' });
+          import('firebase/auth').then(({ signInWithRedirect }) => {
+            signInWithRedirect(auth, provider).catch(console.error);
+          });
+        }, 3000);
+      } else {
+        toast.error(error.message || 'Google login failed');
+      }
     }
   };
 

@@ -18,50 +18,49 @@ export default function Machines() {
   const [confirmModal, setConfirmModal] = useState(null);
 
   useEffect(() => {
-    const unsubTiers = onSnapshot(query(collection(db, 'machineTiers'), orderBy('sortOrder')), async (snap) => {
-      const expectedTiers = [
-        { name: 'Bronze Rig', icon: '🔩', priceKes: 499, weeklyReturnPct: 12, weeklyAmountKes: Math.round(499 * 0.12), sortOrder: 1, isActive: true },
-        { name: 'Silver Rig', icon: '⚙️', priceKes: 1299, weeklyReturnPct: 15, weeklyAmountKes: Math.round(1299 * 0.15), sortOrder: 2, isActive: true },
-        { name: 'Gold Rig', icon: '🏆', priceKes: 3299, weeklyReturnPct: 18, weeklyAmountKes: Math.round(3299 * 0.18), sortOrder: 3, isActive: true },
-        { name: 'Diamond Rig', icon: '💎', priceKes: 4599, weeklyReturnPct: 20, weeklyAmountKes: Math.round(4599 * 0.20), sortOrder: 4, isActive: true },
-        { name: 'Platinum Rig', icon: '👑', priceKes: 5999, weeklyReturnPct: 22, weeklyAmountKes: Math.round(5999 * 0.22), sortOrder: 5, isActive: true }
-      ];
+    const fetchTiers = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'machineTiers'), orderBy('sortOrder')));
+        const expectedTiers = [
+          { name: 'Bronze Rig', icon: '🔩', priceKes: 499, weeklyReturnPct: 12, weeklyAmountKes: Math.round(499 * 0.12), sortOrder: 1, isActive: true },
+          { name: 'Silver Rig', icon: '⚙️', priceKes: 1299, weeklyReturnPct: 15, weeklyAmountKes: Math.round(1299 * 0.15), sortOrder: 2, isActive: true },
+          { name: 'Gold Rig', icon: '🏆', priceKes: 3299, weeklyReturnPct: 18, weeklyAmountKes: Math.round(3299 * 0.18), sortOrder: 3, isActive: true },
+          { name: 'Diamond Rig', icon: '💎', priceKes: 4599, weeklyReturnPct: 20, weeklyAmountKes: Math.round(4599 * 0.20), sortOrder: 4, isActive: true },
+          { name: 'Platinum Rig', icon: '👑', priceKes: 5999, weeklyReturnPct: 22, weeklyAmountKes: Math.round(5999 * 0.22), sortOrder: 5, isActive: true }
+        ];
 
-      if (snap.empty && user) {
-        // Auto-seed if empty
-        const batch = writeBatch(db);
-        expectedTiers.forEach(t => {
-          const ref = doc(collection(db, 'machineTiers'));
-          batch.set(ref, t);
-        });
-        try {
-          await batch.commit();
-        } catch (e) {
-          console.error("Failed to seed tiers", e);
-        }
-      } else if (!snap.empty && user) {
-        const currentTiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const needsUpdate = currentTiers.length !== 5 || currentTiers.some(t => t.name === 'Bronze Rig' && t.priceKes !== 499);
-        
-        if (needsUpdate) {
+        if (snap.empty && user) {
+          // Auto-seed if empty
           const batch = writeBatch(db);
-          // Delete old tiers
-          snap.docs.forEach(d => batch.delete(d.ref));
-          // Add new tiers
           expectedTiers.forEach(t => {
             const ref = doc(collection(db, 'machineTiers'));
             batch.set(ref, t);
           });
-          try {
+          await batch.commit();
+          setTiers(expectedTiers);
+        } else if (!snap.empty && user) {
+          const currentTiers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const needsUpdate = currentTiers.length !== 5 || currentTiers.some(t => t.name === 'Bronze Rig' && t.priceKes !== 499);
+          
+          if (needsUpdate) {
+            const batch = writeBatch(db);
+            snap.docs.forEach(d => batch.delete(d.ref));
+            expectedTiers.forEach(t => {
+              const ref = doc(collection(db, 'machineTiers'));
+              batch.set(ref, t);
+            });
             await batch.commit();
-          } catch (e) {
-            console.error("Failed to update tiers", e);
+            setTiers(expectedTiers);
+          } else {
+            setTiers(currentTiers);
           }
-        } else {
-          setTiers(currentTiers);
         }
+      } catch (error) {
+        console.error("Failed to fetch tiers", error);
       }
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'machineTiers'));
+    };
+    
+    fetchTiers();
 
     let unsubMine = () => {};
     if (user) {
@@ -70,7 +69,7 @@ export default function Machines() {
       }, (error) => handleFirestoreError(error, OperationType.GET, 'userMachines'));
     }
 
-    return () => { unsubTiers(); unsubMine(); };
+    return () => { unsubMine(); };
   }, [user]);
 
   const handleBuyClick = (tier) => {

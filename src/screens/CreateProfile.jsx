@@ -9,8 +9,8 @@ import toast from 'react-hot-toast';
 export default function CreateProfile() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { uid, phone, fullName, country } = location.state || {};
-  const [referralCode, setReferralCode] = useState('');
+  const { uid, phone, fullName, country, refCode } = location.state || {};
+  const [referralCode, setReferralCode] = useState(refCode || '');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {

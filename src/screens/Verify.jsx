@@ -9,7 +9,7 @@ import toast from 'react-hot-toast';
 export default function Verify() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { phone, mode, fullName, country } = location.state || {};
+  const { phone, mode, fullName, country, refCode } = location.state || {};
   const confirmationResult = window.confirmationResult;
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -74,7 +74,7 @@ export default function Verify() {
       }
 
       if (isNewUser) {
-        navigate('/create-profile', { state: { uid: user.uid, phone, fullName, country } });
+        navigate('/create-profile', { state: { uid: user.uid, phone, fullName, country, refCode } });
       } else {
         navigate('/dashboard');
       }

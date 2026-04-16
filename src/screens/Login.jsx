@@ -11,7 +11,13 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const mode = location.state?.mode || 'login'; // 'signup' or 'login'
+  
+  // Check URL params for ref code
+  const queryParams = new URLSearchParams(location.search);
+  const refCodeFromUrl = queryParams.get('ref');
+  
+  // If URL has ref code, default to signup mode
+  const mode = location.state?.mode || (refCodeFromUrl ? 'signup' : 'login');
 
   useEffect(() => {
     setupRecaptcha('recaptcha-container');
@@ -41,7 +47,7 @@ export default function Login() {
     try {
       const confirmationResult = await sendOTP(cleanPhone);
       window.confirmationResult = confirmationResult;
-      navigate('/verify', { state: { phone: cleanPhone, mode, fullName, country } });
+      navigate('/verify', { state: { phone: cleanPhone, mode, fullName, country, refCode: refCodeFromUrl } });
     } catch (error) {
       setLoading(false);
       clearRecaptcha();

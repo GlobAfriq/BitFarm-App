@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { LayoutDashboard, Users, CreditCard, Banknote, Gift, Bell, Activity, LogOut, Menu, X } from 'lucide-react';
 import { logout } from '../../services/auth';
 import { useAuth } from '../../store/AuthContext';
-import { handleFirestoreError, OperationType } from '../../utils/firestoreErrorHandler';
 
 export default function AdminLayout() {
   const [pendingCount, setPendingCount] = useState(0);
@@ -16,15 +15,30 @@ export default function AdminLayout() {
   const user = authContext?.user;
 
   useEffect(() => {
-    const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'));
-    const unsub = onSnapshot(q, (snap) => setPendingCount(snap.docs.length), (error) => handleFirestoreError(error, OperationType.GET, 'withdrawals'));
-    
-    const qDep = query(collection(db, 'depositRequests'), where('status', '==', 'pending_admin_review'));
-    const unsubDep = onSnapshot(qDep, (snap) => setPendingDepositsCount(snap.docs.length), (error) => handleFirestoreError(error, OperationType.GET, 'depositRequests'));
+    let isMounted = true;
+    const fetchCounts = async () => {
+      try {
+        const q = query(collection(db, 'withdrawals'), where('status', '==', 'pending'));
+        const wSnap = await getCountFromServer(q);
+        
+        const qDep = query(collection(db, 'depositRequests'), where('status', '==', 'pending_admin_review'));
+        const dSnap = await getCountFromServer(qDep);
+        
+        if (isMounted) {
+          setPendingCount(wSnap.data().count);
+          setPendingDepositsCount(dSnap.data().count);
+        }
+      } catch (error) {
+        console.error("Failed to fetch counts", error);
+      }
+    };
+
+    fetchCounts();
+    const interval = setInterval(fetchCounts, 60000); // Refresh every 60 seconds
     
     return () => {
-      unsub();
-      unsubDep();
+      isMounted = false;
+      clearInterval(interval);
     };
   }, []);
 

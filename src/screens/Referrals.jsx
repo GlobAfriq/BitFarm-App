@@ -41,7 +41,7 @@ export default function Referrals() {
   };
 
   const shareCode = () => {
-    const text = `Join BitFarm with my code ${profile?.referralCode} and start earning!`;
+    const text = `Join BitFarm and start earning!\n\nUse my code: ${profile?.referralCode}\n\nLink: https://bitfarm.uk/signup?ref=${profile?.referralCode}`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };

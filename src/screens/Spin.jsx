@@ -33,28 +33,31 @@ export default function Spin() {
       setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'spinResults'));
 
-    const unsubPrizes = onSnapshot(query(collection(db, 'spinPrizes'), where('isActive', '==', true)), async (snap) => {
-      if (snap.empty && user) {
-        const batch = writeBatch(db);
-        const p1 = doc(collection(db, 'spinPrizes'));
-        batch.set(p1, { label: 'KES 50', prizeType: 'cash', cashAmount: 50, probabilityWeight: 40, isActive: true });
-        const p2 = doc(collection(db, 'spinPrizes'));
-        batch.set(p2, { label: 'KES 100', prizeType: 'cash', cashAmount: 100, probabilityWeight: 30, isActive: true });
-        const p3 = doc(collection(db, 'spinPrizes'));
-        batch.set(p3, { label: 'KES 500', prizeType: 'cash', cashAmount: 500, probabilityWeight: 10, isActive: true });
-        const p4 = doc(collection(db, 'spinPrizes'));
-        batch.set(p4, { label: 'Try Again', prizeType: 'empty', cashAmount: 0, probabilityWeight: 20, isActive: true });
-        try {
+    const fetchPrizes = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'spinPrizes'), where('isActive', '==', true)));
+        if (snap.empty && user) {
+          const batch = writeBatch(db);
+          const p1 = doc(collection(db, 'spinPrizes'));
+          batch.set(p1, { label: 'KES 50', prizeType: 'cash', cashAmount: 50, probabilityWeight: 40, isActive: true });
+          const p2 = doc(collection(db, 'spinPrizes'));
+          batch.set(p2, { label: 'KES 100', prizeType: 'cash', cashAmount: 100, probabilityWeight: 30, isActive: true });
+          const p3 = doc(collection(db, 'spinPrizes'));
+          batch.set(p3, { label: 'KES 500', prizeType: 'cash', cashAmount: 500, probabilityWeight: 10, isActive: true });
+          const p4 = doc(collection(db, 'spinPrizes'));
+          batch.set(p4, { label: 'Try Again', prizeType: 'empty', cashAmount: 0, probabilityWeight: 20, isActive: true });
           await batch.commit();
-        } catch (e) {
-          console.error("Failed to seed spin prizes", e);
+          fetchPrizes(); // Refetch after seeding
+        } else {
+          setPrizes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         }
-      } else {
-        setPrizes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (error) {
+        console.error("Failed to fetch spin prizes", error);
       }
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'spinPrizes'));
+    };
+    fetchPrizes();
 
-    return () => { unsubTickets(); unsubHistory(); unsubPrizes(); };
+    return () => { unsubTickets(); unsubHistory(); };
   }, [user]);
 
   useEffect(() => {

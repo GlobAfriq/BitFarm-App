@@ -5,15 +5,18 @@ import { db } from '../services/firebase';
 import { useAuth } from '../store/AuthContext';
 import BottomNav from '../components/BottomNav';
 import toast from 'react-hot-toast';
-import { Users, Copy, Share2 } from 'lucide-react';
+import { Users, Copy, Share2, Lock } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrorHandler';
+import { useNavigate } from 'react-router-dom';
 
 export default function Referrals() {
   const { user, profile } = useAuth();
   const [tab, setTab] = useState('overview');
   const [referrals, setReferrals] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [userCache, setUserCache] = useState({});
+  const [hasMachines, setHasMachines] = useState(false);
+  const [loadingMachines, setLoadingMachines] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) return;
@@ -32,15 +35,32 @@ export default function Referrals() {
       (error) => handleFirestoreError(error, OperationType.GET, 'leaderboard')
     );
 
-    return () => { unsubRefs(); unsubLb(); };
+    const unsubMachines = onSnapshot(
+      query(collection(db, 'userMachines'), where('userId', '==', user.uid)),
+      (snap) => {
+        setHasMachines(snap.docs.length > 0);
+        setLoadingMachines(false);
+      },
+      (error) => handleFirestoreError(error, OperationType.GET, 'userMachines')
+    );
+
+    return () => { unsubRefs(); unsubLb(); unsubMachines(); };
   }, [user]);
 
   const copyCode = () => {
+    if (!hasMachines) {
+      toast.error('Buy at least 1 rig to unlock your referral code!');
+      return;
+    }
     navigator.clipboard.writeText(profile?.referralCode || '');
     toast.success('Code copied to clipboard!');
   };
 
   const shareCode = () => {
+    if (!hasMachines) {
+      toast.error('Buy at least 1 rig to unlock your referral code!');
+      return;
+    }
     const text = `Join BitFarm and start earning!\n\nUse my code: ${profile?.referralCode}\n\nLink: https://bitfarm.uk/signup?ref=${profile?.referralCode}`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
@@ -77,16 +97,32 @@ export default function Referrals() {
             </div>
           </div>
 
-          <div className="card border border-[#f0a500]/30 p-6 text-center">
+          <div className="card border border-[#f0a500]/30 p-6 text-center relative overflow-hidden">
+            {!loadingMachines && !hasMachines && (
+              <div className="absolute inset-0 bg-[#111225]/90 backdrop-blur-sm z-10 flex flex-col items-center justify-center p-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-3">
+                  <Lock className="text-red-500" size={24} />
+                </div>
+                <h3 className="font-bold text-lg mb-2">Referral Code Locked</h3>
+                <p className="text-sm text-white/70 mb-4">You need to buy at least 1 mining rig to activate your referral code and start earning commissions.</p>
+                <button 
+                  onClick={() => navigate('/machines')}
+                  className="btn-primary py-2 px-6 text-sm"
+                >
+                  Buy a Rig Now
+                </button>
+              </div>
+            )}
+            
             <p className="text-sm text-white/60 mb-2">Your Referral Code</p>
-            <div className="text-3xl font-mono font-bold text-[#f0a500] tracking-widest mb-6">
-              {profile?.referralCode}
+            <div className={`text-3xl font-mono font-bold tracking-widest mb-6 ${hasMachines ? 'text-[#f0a500]' : 'text-white/20'}`}>
+              {profile?.referralCode || '------'}
             </div>
             <div className="flex gap-3">
-              <button onClick={copyCode} className="flex-1 btn-outline py-3 flex items-center justify-center gap-2">
+              <button onClick={copyCode} disabled={!hasMachines} className="flex-1 btn-outline py-3 flex items-center justify-center gap-2 disabled:opacity-50">
                 <Copy size={18} /> Copy
               </button>
-              <button onClick={shareCode} className="flex-1 btn-primary py-3 flex items-center justify-center gap-2">
+              <button onClick={shareCode} disabled={!hasMachines} className="flex-1 btn-primary py-3 flex items-center justify-center gap-2 disabled:opacity-50">
                 <Share2 size={18} /> Share
               </button>
             </div>

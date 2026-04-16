@@ -16,8 +16,9 @@ export default function Login() {
   const queryParams = new URLSearchParams(location.search);
   const refCodeFromUrl = queryParams.get('ref');
   
-  // If URL has ref code, default to signup mode
-  const mode = location.state?.mode || (refCodeFromUrl ? 'signup' : 'login');
+  // If URL has ref code or path is /signup, default to signup mode
+  const isSignupPath = location.pathname === '/signup';
+  const mode = location.state?.mode || (refCodeFromUrl || isSignupPath ? 'signup' : 'login');
 
   useEffect(() => {
     setupRecaptcha('recaptcha-container');

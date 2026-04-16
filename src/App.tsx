@@ -66,6 +66,7 @@ const AppContent = () => {
         {/* Public Routes */}
         <Route path="/" element={<Splash />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Login />} />
         <Route path="/verify" element={<Verify />} />
         <Route path="/create-profile" element={<CreateProfile />} />
         <Route path="/privacy" element={<Privacy />} />
